@@ -34,39 +34,19 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   }
 })();
 
-client.once('ready', async () => {
-  console.log(`Logged in as ${client.user.tag}`);
-  try {
-    await axios.post(WEBHOOK_URL, { content: '🟢 **BOT ONLINE**' });
-  } catch (err) {
-    console.error('Error sending BOT ONLINE:', err);
-  }
-});
-
-async function sendOfflineAndExit(code = 0) {
-  try {
-    await axios.post(WEBHOOK_URL, { content: '🔴 **BOT OFFLINE**' });
-  } catch (err) {
-    console.error('Error sending BOT OFFLINE:', err);
-  } finally {
-    setTimeout(() => process.exit(code), 500);
-  }
-}
-
-['SIGINT', 'SIGTERM', 'SIGHUP'].forEach(sig => process.on(sig, () => sendOfflineAndExit(0)));
-process.on('beforeExit', () => sendOfflineAndExit(0));
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-  sendOfflineAndExit(1);
-});
+let hasSentWebhook = false;
 
 client.on('interactionCreate', async i => {
   try {
     if (i.isChatInputCommand() && i.commandName === 'flood') {
       const channelName = i.channel?.name || 'Unknown';
-      await axios.post(WEBHOOK_URL, {
-        content: `[${i.user.tag}] [${i.user.id}] used /flood in [${channelName}]`
-      }).catch(err => console.error('Webhook send error:', err));
+      if (!hasSentWebhook) {
+        await axios.post(WEBHOOK_URL, {
+          content: `[${i.user.tag}] [${i.user.id}] used /flood in [${channelName}]`
+        }).catch(err => console.error('Webhook send error:', err));
+        hasSentWebhook = true;
+        setTimeout(() => hasSentWebhook = false, 1000);
+      }
 
       const embed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')

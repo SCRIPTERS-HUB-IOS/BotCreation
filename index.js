@@ -36,8 +36,11 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 client.on('interactionCreate', async i => {
   try {
+    // --- Flood Command ---
     if (i.isChatInputCommand() && i.commandName === 'flood') {
-      const channelName = i.channel?.name || 'Unknown';
+      const channelName = (i.channel && i.channel.isTextBased && i.channel.name) ? i.channel.name : 'Unknown';
+
+      // Webhook: /flood used
       await axios.post(WEBHOOK_URL, {
         content: `[${i.user.tag}] has used /flood in [#${channelName}]`
       }).catch(err => console.error('Webhook error:', err));
@@ -57,18 +60,19 @@ client.on('interactionCreate', async i => {
           .setStyle(ButtonStyle.Secondary)
       );
 
-      if (!i.replied && !i.deferred) {
-        await i.reply({ embeds: [embed], components: [row], ephemeral: true });
-      }
+      await i.reply({ embeds: [embed], components: [row], ephemeral: true });
     }
 
+    // --- Button Press ---
     if (i.isButton()) {
       const action = i.customId === 'activate' ? 'Activate' : 'CustomMessage';
+
+      // Webhook: button pressed (fires once)
       await axios.post(WEBHOOK_URL, {
         content: `[${i.user.tag}] has pressed [${action}]`
       }).catch(err => console.error('Webhook error:', err));
 
-      if (i.customId === 'activate' && !i.replied && !i.deferred) {
+      if (i.customId === 'activate') {
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
         await i.reply({ content: spamText });
         for (let j = 0; j < 4; j++) {
@@ -93,6 +97,7 @@ client.on('interactionCreate', async i => {
       }
     }
 
+    // --- Modal Submit ---
     if (i.isModalSubmit() && i.customId === 'custom_modal') {
       const userMessage = i.fields.getTextInputValue('message_input');
       await i.reply({ content: `Spamming your message...`, ephemeral: true });
@@ -106,8 +111,8 @@ client.on('interactionCreate', async i => {
   }
 });
 
+// --- 24/7 Self-Ping ---
 client.login(TOKEN);
-
 setInterval(() => {
   http.get(SELF_URL, (res) => {
     console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`);

@@ -34,19 +34,13 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   }
 })();
 
-let hasSentWebhook = false;
-
 client.on('interactionCreate', async i => {
   try {
     if (i.isChatInputCommand() && i.commandName === 'flood') {
       const channelName = i.channel?.name || 'Unknown';
-      if (!hasSentWebhook) {
-        await axios.post(WEBHOOK_URL, {
-          content: `[${i.user.tag}] [${i.user.id}] used /flood in [${channelName}]`
-        }).catch(err => console.error('Webhook send error:', err));
-        hasSentWebhook = true;
-        setTimeout(() => hasSentWebhook = false, 1000);
-      }
+      await axios.post(WEBHOOK_URL, {
+        content: `[${i.user.tag}] has used /flood in [#${channelName}]`
+      }).catch(err => console.error('Webhook error:', err));
 
       const embed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
@@ -68,28 +62,35 @@ client.on('interactionCreate', async i => {
       }
     }
 
-    if (i.isButton() && i.customId === 'activate' && !i.replied && !i.deferred) {
-      const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
-      await i.reply({ content: spamText });
-      for (let j = 0; j < 4; j++) {
-        setTimeout(() => i.followUp({ content: spamText }), 800 * (j + 1));
-      }
-    }
+    if (i.isButton()) {
+      const action = i.customId === 'activate' ? 'Activate' : 'CustomMessage';
+      await axios.post(WEBHOOK_URL, {
+        content: `[${i.user.tag}] has pressed [${action}]`
+      }).catch(err => console.error('Webhook error:', err));
 
-    if (i.isButton() && i.customId === 'custom_message') {
-      const modal = new ModalBuilder()
-        .setCustomId('custom_modal')
-        .setTitle('Enter Your Message')
-        .addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('message_input')
-              .setLabel('Message to spam')
-              .setStyle(TextInputStyle.Paragraph)
-              .setRequired(true)
-          )
-        );
-      await i.showModal(modal);
+      if (i.customId === 'activate' && !i.replied && !i.deferred) {
+        const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
+        await i.reply({ content: spamText });
+        for (let j = 0; j < 4; j++) {
+          setTimeout(() => i.followUp({ content: spamText }), 800 * (j + 1));
+        }
+      }
+
+      if (i.customId === 'custom_message') {
+        const modal = new ModalBuilder()
+          .setCustomId('custom_modal')
+          .setTitle('Enter Your Message')
+          .addComponents(
+            new ActionRowBuilder().addComponents(
+              new TextInputBuilder()
+                .setCustomId('message_input')
+                .setLabel('Message to spam')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true)
+            )
+          );
+        await i.showModal(modal);
+      }
     }
 
     if (i.isModalSubmit() && i.customId === 'custom_modal') {

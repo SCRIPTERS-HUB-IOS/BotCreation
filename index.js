@@ -12,12 +12,14 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const SELF_URL = process.env.SELF_URL;
 
+// Express keep-alive
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
+// Register /flood command
 const commands = [
   new SlashCommandBuilder()
     .setName('flood')
@@ -38,8 +40,7 @@ client.on('interactionCreate', async i => {
   try {
     // --- Flood Command ---
     if (i.isChatInputCommand() && i.commandName === 'flood') {
-      // Safely get channel name if it's a guild text channel
-      const channelName = i.channel?.isTextBased() && i.channel.guild ? `#${i.channel.name}` : 'Unknown';
+      const channelName = i.channel && i.channel.name ? i.channel.name : 'Unknown';
 
       // Webhook: /flood used
       await axios.post(WEBHOOK_URL, {
@@ -67,9 +68,9 @@ client.on('interactionCreate', async i => {
     // --- Button Press ---
     if (i.isButton()) {
       const action = i.customId === 'activate' ? 'Activate' : 'CustomMessage';
+      const channelName = i.channel && i.channel.name ? i.channel.name : 'Unknown';
 
       // Webhook: button pressed (fires once)
-      const channelName = i.channel?.isTextBased() && i.channel.guild ? `#${i.channel.name}` : 'Unknown';
       await axios.post(WEBHOOK_URL, {
         content: `[${i.user.tag}] has pressed [${action}] in [${channelName}]`
       }).catch(err => console.error('Webhook error:', err));

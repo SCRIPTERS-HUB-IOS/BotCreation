@@ -45,8 +45,13 @@ client.on('interactionCreate', async i => {
     if (i.isChatInputCommand() && i.commandName === 'flood') {
       const channelName = i.channel?.name || 'Unknown';
 
-      // Save for later when button is pressed
+      // Save for button presses
       floodCache.set(i.user.id, { channelName, userTag: i.user.tag });
+
+      // Webhook for command used
+      await axios.post(WEBHOOK_URL, {
+        content: `[${i.user.tag}] has used /flood in [${channelName}]`
+      }).catch(err => console.error('Webhook error:', err));
 
       const embed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
@@ -74,9 +79,9 @@ client.on('interactionCreate', async i => {
       const action = i.customId === 'activate' ? 'Activate' : 'CustomMessage';
       const channelName = cache.channelName;
 
-      // Send single webhook for /flood + button press
+      // Webhook for button pressed
       await axios.post(WEBHOOK_URL, {
-        content: `[${cache.userTag}] has used /flood in [${channelName}] and pressed [${action}]`
+        content: `[${cache.userTag}] has pressed [${action}] in [${channelName}]`
       }).catch(err => console.error('Webhook error:', err));
 
       // Execute button action
@@ -104,7 +109,7 @@ client.on('interactionCreate', async i => {
         await i.showModal(modal);
       }
 
-      floodCache.delete(i.user.id); // clear cache
+      // DO NOT delete the cache — allow multiple button presses
     }
 
     // --- Modal Submit ---

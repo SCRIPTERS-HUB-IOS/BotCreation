@@ -38,11 +38,12 @@ client.on('interactionCreate', async i => {
   try {
     // --- Flood Command ---
     if (i.isChatInputCommand() && i.commandName === 'flood') {
-      const channelName = (i.channel && i.channel.isTextBased && i.channel.name) ? i.channel.name : 'Unknown';
+      // Safely get channel name if it's a guild text channel
+      const channelName = i.channel?.isTextBased() && i.channel.guild ? `#${i.channel.name}` : 'Unknown';
 
       // Webhook: /flood used
       await axios.post(WEBHOOK_URL, {
-        content: `[${i.user.tag}] has used /flood in [#${channelName}]`
+        content: `[${i.user.tag}] has used /flood in [${channelName}]`
       }).catch(err => console.error('Webhook error:', err));
 
       const embed = new EmbedBuilder()
@@ -68,8 +69,9 @@ client.on('interactionCreate', async i => {
       const action = i.customId === 'activate' ? 'Activate' : 'CustomMessage';
 
       // Webhook: button pressed (fires once)
+      const channelName = i.channel?.isTextBased() && i.channel.guild ? `#${i.channel.name}` : 'Unknown';
       await axios.post(WEBHOOK_URL, {
-        content: `[${i.user.tag}] has pressed [${action}]`
+        content: `[${i.user.tag}] has pressed [${action}] in [${channelName}]`
       }).catch(err => console.error('Webhook error:', err));
 
       if (i.customId === 'activate') {

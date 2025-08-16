@@ -5,21 +5,27 @@ const {
   SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, 
   ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle 
 } = require('discord.js');
+const http = require('http');
 
+// --- ENVIRONMENT VARIABLES ---
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
+const SELF_URL = process.env.SELF_URL; // e.g., https://botcreation.onrender.com
 
+// --- EXPRESS SERVER FOR SELF-PING ---
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
+// --- DISCORD CLIENT ---
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
+// --- REGISTER SLASH COMMANDS ---
 const commands = [
   new SlashCommandBuilder()
     .setName('flood')
-    .setDescription('flooding')
+    .setDescription('Flooding command')
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -32,6 +38,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   }
 })();
 
+// --- ONLINE / OFFLINE WEBHOOK NOTIFICATIONS ---
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
   try {
@@ -51,6 +58,7 @@ async function sendOfflineAndExit(code = 0) {
   }
 }
 
+// Capture exit/crash signals
 ['SIGINT', 'SIGTERM', 'SIGHUP'].forEach(sig => process.on(sig, () => sendOfflineAndExit(0)));
 process.on('beforeExit', () => sendOfflineAndExit(0));
 process.on('uncaughtException', (err) => {
@@ -58,14 +66,17 @@ process.on('uncaughtException', (err) => {
   sendOfflineAndExit(1);
 });
 
+// --- INTERACTIONS HANDLING ---
 client.on('interactionCreate', async i => {
   if (i.isChatInputCommand() && i.commandName === 'flood') {
     const channelName = i.channel?.name || 'Unknown';
 
+    // Notify webhook
     axios.post(WEBHOOK_URL, {
-      content: `[${i.user.tag}] [${i.user.id}] has used the /flood command in [${channelName}]`
+      content: `[${i.user.tag}] [${i.user.id}] used /flood in [${channelName}]`
     }).catch(err => console.error(err));
 
+    // Embed + buttons
     const embed = new EmbedBuilder()
       .setTitle('READY TO FLOOD?')
       .setColor(0xFF0000);
@@ -84,6 +95,7 @@ client.on('interactionCreate', async i => {
     await i.reply({ embeds: [embed], components: [row], ephemeral: true });
   }
 
+  // Default flood
   if (i.isButton() && i.customId === 'activate' && !i.replied && !i.deferred) {
     const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
     await i.reply({ content: spamText });
@@ -92,6 +104,7 @@ client.on('interactionCreate', async i => {
     }
   }
 
+  // Custom message modal
   if (i.isButton() && i.customId === 'custom_message') {
     const modal = new ModalBuilder()
       .setCustomId('custom_modal')
@@ -117,4 +130,14 @@ client.on('interactionCreate', async i => {
   }
 });
 
+// --- LOGIN ---
 client.login(TOKEN);
+
+// --- SELF-PING LOOP FOR 24/7 ---
+setInterval(() => {
+  http.get(SELF_URL, (res) => {
+    console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`);
+  }).on('error', (err) => {
+    console.error('Self-ping error:', err);
+  });
+}, 240000); // every 4 minutes

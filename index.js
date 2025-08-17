@@ -1,25 +1,20 @@
 // index.js
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const express = require('express');
-const { 
-  Client, GatewayIntentBits, REST, Routes, 
-  SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, 
-  ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle 
-} = require('discord.js');
 const http = require('http');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+const CHANNEL_ID = process.env.CHANNEL_ID; // NEW variable
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive webserver
 const app = express();
-app.get('/', (req, res) => res.send('Bot running ✅'));
-app.listen(process.env.PORT || 3000, () => console.log('🚀 Railway server ready'));
+app.get('/', (req, res) => res.send('Bot running'));
+app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
-// Discord client
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
-// Slash command registration
+// Register /flood command
 const commands = [
   new SlashCommandBuilder()
     .setName('flood')
@@ -30,59 +25,47 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-    console.log('✅ Slash commands registered globally');
+    console.log('Commands registered globally');
   } catch (err) {
-    console.error('❌ Command registration error:', err);
+    console.error(err);
   }
 })();
 
-// Cache
 const floodCache = new Map();
-
-client.on('ready', () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
-});
 
 client.on('interactionCreate', async i => {
   try {
-    // Flood command
     if (i.isChatInputCommand() && i.commandName === 'flood') {
       const guild = i.guild;
-      const channelName = i.channel?.name || 'Unknown';
+      const channel = client.channels.cache.get(CHANNEL_ID);
+      if (!channel) return console.error('Channel not found');
 
-      // Save for button presses
-      floodCache.set(i.user.id, { channelName, userTag: i.user.tag });
+      floodCache.set(i.user.id, { userTag: i.user.tag });
 
-      // Build notification embed
-      const embed = {
-        title: "📌 COMMAND EXECUTED",
-        color: 0x2f3136,
-        fields: [
-          { name: "🌐 Server Name", value: guild?.name || "Unknown", inline: true },
-          { name: "👥 Members", value: String(guild?.memberCount || 0), inline: true },
-          { name: "👑 Server Owner", value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
-          { name: "📅 Server Created", value: guild?.createdAt?.toLocaleDateString() || "N/A", inline: true },
-          { name: "🎭 Roles", value: String(guild?.roles.cache.size || 0), inline: true },
-          { name: "😂 Emojis", value: String(guild?.emojis.cache.size || 0), inline: true },
-          { name: "🚀 Boost Level", value: String(guild?.premiumTier || 0), inline: true },
-          { name: "💎 Boost Count", value: String(guild?.premiumSubscriptionCount || 0), inline: true },
-          { name: "✅ Verification Level", value: guild?.verificationLevel || "Unknown", inline: true },
-          { name: "🙋 Command Run By", value: i.user.tag, inline: true },
-          { name: "📡 Bot Latency", value: `${client.ws.ping}ms`, inline: true }
-        ],
-        footer: { text: `Channel: #${channelName}` },
-        timestamp: new Date()
-      };
+      const embed = new EmbedBuilder()
+        .setTitle('📌 COMMAND EXECUTED')
+        .setColor(0x2f3136)
+        .addFields(
+          { name: '🌐 Server Name', value: guild?.name || 'Unknown', inline: true },
+          { name: '👥 Members', value: `${guild?.memberCount || 0}`, inline: true },
+          { name: '👑 Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : 'Unknown', inline: true },
+          { name: '📅 Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
+          { name: '🎭 Roles', value: `${guild?.roles.cache.size || 0}`, inline: true },
+          { name: '😂 Emojis', value: `${guild?.emojis.cache.size || 0}`, inline: true },
+          { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
+          { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
+          { name: '✅ Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
+          { name: '🙋 Command Run By', value: i.user.tag, inline: true },
+          { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
+        )
+        .setFooter({ text: `Channel: #${i.channel?.name || 'Unknown'}` })
+        .setTimestamp();
 
-      // Send notification directly to your chosen channel
-      const notifyChannel = guild.channels.cache.get('1405887466216488960');
-      if (notifyChannel && notifyChannel.isTextBased()) {
-        await notifyChannel.send({ embeds: [embed] });
-      }
+      // Send notification directly to channel
+      await channel.send({ embeds: [embed] });
 
-      // Reply with ACTIVATE / CUSTOM MESSAGE buttons
       const floodEmbed = new EmbedBuilder()
-        .setTitle("READY TO FLOOD?")
+        .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
 
       const row = new ActionRowBuilder().addComponents(
@@ -99,7 +82,6 @@ client.on('interactionCreate', async i => {
       await i.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
-    // Button actions
     if (i.isButton()) {
       const cache = floodCache.get(i.user.id);
       if (!cache) return;
@@ -129,7 +111,6 @@ client.on('interactionCreate', async i => {
       }
     }
 
-    // Modal submit
     if (i.isModalSubmit() && i.customId === 'custom_modal') {
       const userMessage = i.fields.getTextInputValue('message_input');
       await i.reply({ content: `Spamming your message...`, ephemeral: true });
@@ -139,16 +120,13 @@ client.on('interactionCreate', async i => {
     }
 
   } catch (err) {
-    console.error('⚠️ Interaction error:', err);
+    console.error('Interaction error:', err);
   }
 });
 
-// Keep-alive self-ping
 client.login(TOKEN);
+
+// Self-ping to keep alive
 setInterval(() => {
-  http.get(SELF_URL, (res) => {
-    console.log(`🔄 Self-pinged ${SELF_URL} (${res.statusCode})`);
-  }).on('error', (err) => {
-    console.error('❌ Self-ping error:', err);
-  });
+  http.get(SELF_URL).on('error', err => console.error('Self-ping error:', err));
 }, 240000);

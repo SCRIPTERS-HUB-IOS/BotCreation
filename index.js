@@ -72,27 +72,25 @@ client.on('interactionCreate', async interaction => {
   try {
     // Slash command /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
+      await interaction.deferReply({ ephemeral: true }); // defer immediately
+
       const guild = await client.guilds.fetch(interaction.guildId);
       const channel = interaction.channel;
       const memberCount = guild?.memberCount || 0;
       const guildName = guild?.name || "Unknown Server";
 
-      // Prevent multiple notifications
       if(floodCache.has(interaction.user.id)) return;
       floodCache.set(interaction.user.id, true);
 
-      // Pick a random roast
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
       roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
 
-      // Fetch guild owner safely
       let ownerTag = "Unknown";
       try {
         const owner = await guild.fetchOwner();
         ownerTag = owner.user.tag;
       } catch {}
 
-      // --- Fancy embed ---
       const embed = new EmbedBuilder()
         .setTitle('🅕🅛🅞🅞🅓 📌 COMMAND EXECUTED')
         .setColor(0xFF0000)
@@ -113,13 +111,11 @@ client.on('interactionCreate', async interaction => {
         .setTimestamp(new Date())
         .setFooter({ text: '🚨 FLOOD NOTIFIER SYSTEM', iconURL: client.user.displayAvatarURL() });
 
-      // --- Send to notify channel ---
       const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
       if(notifyChannel && notifyChannel.isTextBased() && notifyChannel.permissionsFor(client.user).has('SendMessages')){
         await notifyChannel.send({ content: roast, embeds: [embed] });
       }
 
-      // --- Reply ephemeral flood menu ---
       const floodEmbed = new EmbedBuilder()
         .setTitle('🅕🅛🅞🅞🅓 READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -129,13 +125,10 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
       );
 
-      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
-
-      // Clear cache after 30 seconds
+      await interaction.editReply({ embeds: [floodEmbed], components: [row] });
       setTimeout(() => floodCache.delete(interaction.user.id), 30000);
     }
 
-    // Button interactions
     if(interaction.isButton()){
       const cache = floodCache.get(interaction.user.id);
       if(!cache) return;
@@ -165,7 +158,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // Modal submit
     if(interaction.isModalSubmit() && interaction.customId === 'custom_modal'){
       const userMessage = interaction.fields.getTextInputValue('message_input');
       await interaction.reply({ content: `Spamming your message...`, ephemeral: true });

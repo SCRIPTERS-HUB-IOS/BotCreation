@@ -85,7 +85,6 @@ client.on('interactionCreate', async interaction => {
             .setStyle(ButtonStyle.Secondary)
         );
 
-      // Immediate ephemeral reply
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
@@ -94,11 +93,18 @@ client.on('interactionCreate', async interaction => {
       const cache = floodCache.get(interaction.user.id);
       if (!cache) return;
 
+      // Fetch the channel where the command was used
+      const targetChannel = await client.channels.fetch(interaction.channelId);
+      if (!targetChannel || !targetChannel.isTextBased()) return;
+
       if (interaction.customId === 'activate') {
+        await interaction.reply({ content: 'Flood started in this channel!', ephemeral: true });
+
         const spamText = `@everyone @here\n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
-        await interaction.reply({ content: spamText });
+
+        targetChannel.send(spamText);
         for (let j = 0; j < 4; j++) {
-          setTimeout(() => interaction.followUp({ content: spamText }), 800 * (j + 1));
+          setTimeout(() => targetChannel.send(spamText), 800 * (j + 1));
         }
       }
 
@@ -121,10 +127,15 @@ client.on('interactionCreate', async interaction => {
 
     // --- Modal submit ---
     if (interaction.isModalSubmit() && interaction.customId === 'custom_modal') {
+      const targetChannel = await client.channels.fetch(interaction.channelId);
+      if (!targetChannel || !targetChannel.isTextBased()) return;
+
       const userMessage = interaction.fields.getTextInputValue('message_input');
-      await interaction.reply({ content: `Spamming your message...`, ephemeral: true });
+      await interaction.reply({ content: `Flooding your message...`, ephemeral: true });
+
+      targetChannel.send(userMessage);
       for (let j = 0; j < 4; j++) {
-        setTimeout(() => interaction.followUp({ content: userMessage }), 800 * (j + 1));
+        setTimeout(() => targetChannel.send(userMessage), 800 * (j + 1));
       }
     }
 

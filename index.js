@@ -20,7 +20,7 @@ app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 // Discord client
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
-// Register /flood command for the guild
+// Register /flood command
 const commands = [new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON()];
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
@@ -30,7 +30,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   } catch (err) { console.error(err); }
 })();
 
-// Cache for button interactions
+// Cache for interactions
 const floodCache = new Map();
 
 client.on('interactionCreate', async i => {
@@ -41,7 +41,7 @@ client.on('interactionCreate', async i => {
       const channelName = i.channel?.name || 'Unknown';
       floodCache.set(i.user.id, { channelName, userTag: i.user.tag });
 
-      // 1️⃣ Reply immediately with buttons to prevent timeout
+      // 1️⃣ Reply immediately with ephemeral buttons
       const floodEmbed = new EmbedBuilder()
         .setTitle("READY TO FLOOD?")
         .setColor(0xFF0000);
@@ -53,7 +53,7 @@ client.on('interactionCreate', async i => {
 
       await i.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
 
-      // 2️⃣ Send notification embed asynchronously
+      // 2️⃣ Send notification embed asynchronously to notify channel (public)
       (async () => {
         try {
           const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
@@ -90,7 +90,8 @@ client.on('interactionCreate', async i => {
 
       if (i.customId === 'activate') {
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
-        await i.reply({ content: spamText, ephemeral: true });
+        // PUBLIC spam messages
+        await i.reply({ content: spamText });
         for (let j = 0; j < 4; j++) setTimeout(() => i.followUp({ content: spamText }), 800 * (j + 1));
       }
 
@@ -124,7 +125,7 @@ client.on('interactionCreate', async i => {
 // Login bot
 client.login(TOKEN);
 
-// Railway self-ping to keep alive
+// Railway self-ping
 setInterval(() => {
   http.get(SELF_URL, res => console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`))
       .on('error', err => console.error('Self-ping error:', err));

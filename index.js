@@ -8,17 +8,23 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID; // optional if you want guild-specific commands
+const GUILD_ID = process.env.GUILD_ID; // optional for guild-specific
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive server for Railway
+// Keep-alive for Railway
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
-// Discord client
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+// Discord client with necessary intents
+const client = new Client({ 
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers
+  ]
+});
 
 // Register /flood command
 const commands = [new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON()];
@@ -35,83 +41,63 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   } catch (err) { console.error(err); }
 })();
 
-// Funny roasts array
+// Funny roasts
 const roasts = [
-  "Yo %SERVER%, did you hire a hamster to moderate this place? 😂",
+  "Yo %SERVER%, did you hire a hamster to moderate this place?",
   "%SERVER% members: active. Moderation: asleep.",
-  "Wow %SERVER%, your rules are more like suggestions, huh?",
+  "Wow %SERVER%, your rules are more like suggestions.",
   "Nice server, %SERVER%. Did someone forget to turn on the brain?",
-  "0/10 would trust %SERVER% with a single emoji.",
-  "%SERVER% moderation team: ghosts confirmed.",
-  "Members in %SERVER%: 100. Brain cells: missing.",
-  "%SERVER% looks peaceful... too bad it isn’t.",
-  "Roles in %SERVER%? Might as well be invisible.",
-  "Boosts in %SERVER% can’t fix the chaos inside.",
   "Admins of %SERVER%: are you even here?",
-  "Oh look %SERVER%, another emoji. Didn’t help the moderation.",
-  "Keep it up %SERVER%, you’re trending on chaos charts.",
   "%SERVER% – where rules go to die.",
-  "%SERVER% security: more holes than Swiss cheese.",
-  "Congrats %SERVER%, you just got roasted by a bot.",
-  "Members of %SERVER%: active. Brain cells: missing.",
-  "%SERVER% – a safe space for memes and disasters.",
-  "%SERVER% forgot how to enforce rules, apparently.",
-  "Looks like %SERVER% moderation is on permanent vacation.",
-  "Wow %SERVER%, you made a server without any sense of order.",
-  "%SERVER% admins: free advice — maybe read the manual?",
-  "%SERVER% – where chaos is king and rules are peasants.",
-  "0/10, wouldn’t recommend %SERVER% for moderation tips.",
-  "Nice try %SERVER%, but amateurs everywhere.",
-  "If chaos was a sport, %SERVER% would be gold medalists."
+  "Congrats %SERVER%, you just got roasted by a bot."
 ];
 
-// Cache for modal/button interactions
+// Cache for interactions
 const floodCache = new Map();
 
 client.on('interactionCreate', async interaction => {
   try {
-    // Slash command /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
-      const guild = interaction.guild;
+      // Fetch full guild
+      const guild = await interaction.guild.fetch();
       const channel = interaction.channel;
-      const memberCount = guild?.memberCount || 0;
-      const guildName = guild?.name || "Unknown Server";
+      const memberCount = guild.memberCount || 0;
+      const guildName = guild.name || "Unknown Server";
 
-      // Prevent multiple notifications for repeated presses
+      // Prevent duplicate notifications
       if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
       floodCache.set(interaction.user.id, true);
 
-      // --- Pick a random roast ---
+      // Random roast
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
-      roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
+      roast = roast.replace('%SERVER%', guildName);
 
-      // --- Embed with server stats ---
+      // Embed without emojis
       const embed = new EmbedBuilder()
-        .setTitle('📌 COMMAND EXECUTED')
+        .setTitle('COMMAND EXECUTED')
         .setColor(0xFF0000)
         .addFields(
-          { name: '🌐 Server Name', value: guildName, inline: true },
-          { name: '👥 Members', value: `${memberCount}`, inline: true },
-          { name: '👑 Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
-          { name: '📅 Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
-          { name: '🎭 Roles', value: `${guild?.roles?.cache.size || 0}`, inline: true },
-          { name: '😂 Emojis', value: `${guild?.emojis?.cache.size || 0}`, inline: true },
-          { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
-          { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
-          { name: '✅ Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
-          { name: '📝 Channel', value: `#${channel?.name || 'Unknown'}`, inline: true },
-          { name: '🙋 Command Run By', value: interaction.user.tag, inline: true },
-          { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
+          { name: 'Server Name', value: guildName, inline: true },
+          { name: 'Members', value: `${memberCount}`, inline: true },
+          { name: 'Server Owner', value: guild.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
+          { name: 'Server Created', value: guild.createdAt?.toLocaleDateString() || 'N/A', inline: true },
+          { name: 'Roles', value: `${guild.roles.cache.size || 0}`, inline: true },
+          { name: 'Boost Level', value: `${guild.premiumTier || 0}`, inline: true },
+          { name: 'Boost Count', value: `${guild.premiumSubscriptionCount || 0}`, inline: true },
+          { name: 'Verification Level', value: `${guild.verificationLevel || 'Unknown'}`, inline: true },
+          { name: 'Channel', value: `#${channel?.name || 'Unknown'}`, inline: true },
+          { name: 'Command Run By', value: interaction.user.tag, inline: true },
+          { name: 'Bot Latency', value: `${client.ws.ping}ms`, inline: true }
         )
         .setTimestamp(new Date());
 
-      // --- Send roast + embed to notify channel once ---
+      // Send roast + embed once
       const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
       if(notifyChannel?.isTextBased()){
         await notifyChannel.send({ content: roast, embeds: [embed] });
       }
 
-      // --- Reply ephemeral flood menu ---
+      // Ephemeral flood menu
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);

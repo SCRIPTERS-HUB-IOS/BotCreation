@@ -7,17 +7,18 @@ const {
 } = require('discord.js');
 const http = require('http');
 
-// Env Vars from Railway
+// Railway env vars
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive webserver for Railway
+// Keep-alive webserver
 const app = express();
-app.get('/', (req, res) => res.send('Bot running'));
-app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
+app.get('/', (req, res) => res.send('Bot running ✅'));
+app.listen(process.env.PORT || 3000, () => console.log('🚀 Railway server ready'));
 
+// Discord client
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
 // Slash command registration
@@ -31,30 +32,65 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-    console.log('Commands registered globally');
+    console.log('✅ Slash commands registered globally');
   } catch (err) {
-    console.error(err);
+    console.error('❌ Command registration error:', err);
   }
 })();
 
-// Cache user flood context
+// Cache
 const floodCache = new Map();
+
+client.on('ready', async () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+  await axios.post(WEBHOOK_URL, {
+    username: "Notifier",
+    embeds: [{
+      title: "🤖 Bot Online",
+      color: 0x57F287,
+      description: `Bot started successfully on Railway as **${client.user.tag}**`,
+      timestamp: new Date()
+    }]
+  }).catch(() => {});
+});
 
 client.on('interactionCreate', async i => {
   try {
-    // --- /flood Command ---
+    // --- /flood command ---
     if (i.isChatInputCommand() && i.commandName === 'flood') {
+      const guild = i.guild;
       const channelName = i.channel?.name || 'Unknown';
 
       floodCache.set(i.user.id, { channelName, userTag: i.user.tag });
 
-      // Webhook notification (ONLY when /flood used)
-      await axios.post(WEBHOOK_URL, {
-        content: `[${i.user.tag}] has used /flood in [${channelName}]`
-      }).catch(err => console.error('Webhook error:', err));
+      // Build webhook embed (like screenshot)
+      const embed = {
+        title: "📌 COMMAND EXECUTED",
+        color: 0x2f3136,
+        fields: [
+          { name: "🌐 Server Name", value: guild?.name || "Unknown", inline: true },
+          { name: "👥 Members", value: `${guild?.memberCount || 0}`, inline: true },
+          { name: "👑 Server Owner", value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
+          { name: "📅 Server Created", value: guild?.createdAt?.toLocaleDateString() || "N/A", inline: true },
+          { name: "🎭 Roles", value: `${guild?.roles?.cache.size || 0}`, inline: true },
+          { name: "😂 Emojis", value: `${guild?.emojis?.cache.size || 0}`, inline: true },
+          { name: "🚀 Boost Level", value: `${guild?.premiumTier || 0}`, inline: true },
+          { name: "💎 Boost Count", value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
+          { name: "✅ Verification Level", value: `${guild?.verificationLevel || "Unknown"}`, inline: true },
+          { name: "🙋 Command Run By", value: `${i.user.tag}`, inline: true },
+          { name: "📡 Bot Latency", value: `${client.ws.ping}ms`, inline: true },
+        ],
+        footer: { text: `Channel: #${channelName}` },
+        timestamp: new Date()
+      };
 
-      const embed = new EmbedBuilder()
-        .setTitle('READY TO FLOOD?')
+      // Send webhook embed
+      await axios.post(WEBHOOK_URL, { username: "Notifier", embeds: [embed] })
+        .catch(err => console.error("Webhook error:", err));
+
+      // Reply with ephemeral flood menu
+      const floodEmbed = new EmbedBuilder()
+        .setTitle("READY TO FLOOD?")
         .setColor(0xFF0000);
 
       const row = new ActionRowBuilder().addComponents(
@@ -68,7 +104,7 @@ client.on('interactionCreate', async i => {
           .setStyle(ButtonStyle.Secondary)
       );
 
-      await i.reply({ embeds: [embed], components: [row], ephemeral: true });
+      await i.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
     // --- Button Press ---
@@ -109,18 +145,17 @@ client.on('interactionCreate', async i => {
         setTimeout(() => i.followUp({ content: userMessage }), 800 * (j + 1));
       }
     }
-
   } catch (err) {
-    console.error('Interaction error:', err);
+    console.error('⚠️ Interaction error:', err);
   }
 });
 
-// --- 24/7 Self-Ping for Railway ---
+// Keep-alive self-ping (Railway)
 client.login(TOKEN);
 setInterval(() => {
   http.get(SELF_URL, (res) => {
-    console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`);
+    console.log(`🔄 Self-pinged ${SELF_URL} (${res.statusCode})`);
   }).on('error', (err) => {
-    console.error('Self-ping error:', err);
+    console.error('❌ Self-ping error:', err);
   });
 }, 240000);

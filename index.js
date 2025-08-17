@@ -65,8 +65,9 @@ const roasts = [
 “If chaos was a sport, %SERVER% would be gold medalists.”
 ];
 
-// Cache for modal/button interactions
+// Cache for modal/button interactions and notification prevention
 const floodCache = new Map();
+const notificationSent = new Set();
 
 client.on(‘interactionCreate’, async interaction => {
 try {
@@ -78,8 +79,47 @@ const memberCount = guild?.memberCount || 0;
 const guildName = guild?.name || “Unknown Server”;
 
 ```
-  // Prevent multiple notifications for repeated presses
-  if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
+  // Create unique key to prevent duplicate notifications
+  const notificationKey = `${interaction.user.id}-${guild.id}-${Date.now()}`;
+  
+  // Check if notification was already sent in the last 5 seconds
+  const recentKey = `${interaction.user.id}-${guild.id}`;
+  if(notificationSent.has(recentKey)) {
+    console.log('Duplicate notification prevented');
+  } else {
+    // Add to prevention set and remove after 5 seconds
+    notificationSent.add(recentKey);
+    setTimeout(() => notificationSent.delete(recentKey), 5000);
+
+    // --- Pick a random roast ---
+    let roast = roasts[Math.floor(Math.random() * roasts.length)];
+    roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
+
+    // --- Simple embed with requested info ---
+    const embed = new EmbedBuilder()
+      .setTitle('📌 COMMAND EXECUTED')
+      .setColor(0xFF0000)
+      .addFields(
+        { name: 'Server Name:', value: guildName, inline: false },
+        { name: 'Command User:', value: interaction.user.tag, inline: false },
+        { name: 'Bot Latency:', value: `${client.ws.ping}ms`, inline: false },
+        { name: 'Server Date Created:', value: guild?.createdAt?.toLocaleDateString() || 'Unknown', inline: false },
+        { name: 'Time Raided:', value: new Date().toLocaleTimeString(), inline: false }
+      )
+      .setTimestamp(new Date());
+
+    // --- Send roast + embed to notify channel once ---
+    try {
+      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
+      if(notifyChannel?.isTextBased()){
+        await notifyChannel.send({ content: roast, embeds: [embed] });
+      }
+    } catch(notifyError) {
+      console.error('Notification error:', notifyError);
+    }
+  }
+
+  // Set cache for button interactions
   floodCache.set(interaction.user.id, true);
 
   // --- Reply ephemeral flood menu ---
@@ -93,43 +133,6 @@ const guildName = guild?.name || “Unknown Server”;
   );
 
   await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
-
-  // --- Send notification after reply ---
-  setTimeout(async () => {
-    try {
-      // --- Pick a random roast ---
-      let roast = roasts[Math.floor(Math.random() * roasts.length)];
-      roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
-
-      // --- Embed with server stats ---
-      const embed = new EmbedBuilder()
-        .setTitle('📌 COMMAND EXECUTED')
-        .setColor(0xFF0000)
-        .addFields(
-          { name: '🌐 Server Name', value: guildName, inline: true },
-          { name: '👥 Members', value: `${memberCount}`, inline: true },
-          { name: '👑 Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
-          { name: '📅 Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
-          { name: '🎭 Roles', value: `${guild?.roles?.cache.size || 0}`, inline: true },
-          { name: '😂 Emojis', value: `${guild?.emojis?.cache.size || 0}`, inline: true },
-          { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
-          { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
-          { name: '✅ Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
-          { name: '📝 Channel', value: `#${channel?.name || 'Unknown'}`, inline: true },
-          { name: '🙋 Command Run By', value: interaction.user.tag, inline: true },
-          { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
-        )
-        .setTimestamp(new Date());
-
-      // --- Send roast + embed to notify channel once ---
-      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
-      if(notifyChannel?.isTextBased()){
-        await notifyChannel.send({ content: roast, embeds: [embed] });
-      }
-    } catch(notifyError) {
-      console.error('Notification error:', notifyError);
-    }
-  }, 100);
 }
 
 // Button interactions

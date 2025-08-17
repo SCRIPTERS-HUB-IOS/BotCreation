@@ -31,7 +31,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
     await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
-    console.log('Commands registered to guild');
+    console.log('Commands registered to guild instantly');
   } catch (err) {
     console.error(err);
   }
@@ -43,11 +43,14 @@ client.on('interactionCreate', async interaction => {
   try {
     // --- Slash command ---
     if (interaction.isChatInputCommand() && interaction.commandName === 'flood') {
+      // Immediate reply to avoid "did not respond"
+      await interaction.reply({ content: 'Processing your flood command...', ephemeral: true });
+
       const guild = interaction.guild;
       const channelName = interaction.channel?.name || 'Unknown';
       floodCache.set(interaction.user.id, { channelName, userTag: interaction.user.tag });
 
-      // Embed notification
+      // Build notification embed
       const embed = new EmbedBuilder()
         .setTitle('📌 COMMAND EXECUTED')
         .setColor(0x2f3136)
@@ -63,13 +66,13 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: `Channel: #${channelName}` })
         .setTimestamp();
 
-      // Send notification
+      // Send notification to the notify channel
       const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
       if (notifyChannel && notifyChannel.isTextBased()) {
         await notifyChannel.send({ embeds: [embed] });
       }
 
-      // Reply with buttons
+      // Send ephemeral button interface
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -86,7 +89,7 @@ client.on('interactionCreate', async interaction => {
             .setStyle(ButtonStyle.Secondary)
         );
 
-      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+      await interaction.followUp({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
     // --- Button interaction ---

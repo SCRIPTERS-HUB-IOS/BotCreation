@@ -8,7 +8,7 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID; // optional if you want global commands
+const GUILD_ID = process.env.GUILD_ID; // optional if you want guild-specific commands
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
@@ -35,11 +35,42 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   } catch (err) { console.error(err); }
 })();
 
+// Funny roasts array
+const roasts = [
+  "Yo %SERVER%, did you hire a hamster to moderate this place? 😂",
+  "%SERVER% members: active. Moderation: asleep.",
+  "Wow %SERVER%, your rules are more like suggestions, huh?",
+  "Nice server, %SERVER%. Did someone forget to turn on the brain?",
+  "0/10 would trust %SERVER% with a single emoji.",
+  "%SERVER% moderation team: ghosts confirmed.",
+  "Members in %SERVER%: 100. Brain cells: missing.",
+  "%SERVER% looks peaceful... too bad it isn’t.",
+  "Roles in %SERVER%? Might as well be invisible.",
+  "Boosts in %SERVER% can’t fix the chaos inside.",
+  "Admins of %SERVER%: are you even here?",
+  "Oh look %SERVER%, another emoji. Didn’t help the moderation.",
+  "Keep it up %SERVER%, you’re trending on chaos charts.",
+  "%SERVER% – where rules go to die.",
+  "%SERVER% security: more holes than Swiss cheese.",
+  "Congrats %SERVER%, you just got roasted by a bot.",
+  "Members of %SERVER%: active. Brain cells: missing.",
+  "%SERVER% – a safe space for memes and disasters.",
+  "%SERVER% forgot how to enforce rules, apparently.",
+  "Looks like %SERVER% moderation is on permanent vacation.",
+  "Wow %SERVER%, you made a server without any sense of order.",
+  "%SERVER% admins: free advice — maybe read the manual?",
+  "%SERVER% – where chaos is king and rules are peasants.",
+  "0/10, wouldn’t recommend %SERVER% for moderation tips.",
+  "Nice try %SERVER%, but amateurs everywhere.",
+  "If chaos was a sport, %SERVER% would be gold medalists."
+];
+
 // Cache for modal/button interactions
 const floodCache = new Map();
 
 client.on('interactionCreate', async interaction => {
   try {
+    // Slash command /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
       const guild = interaction.guild;
       const channel = interaction.channel;
@@ -50,8 +81,9 @@ client.on('interactionCreate', async interaction => {
       if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
       floodCache.set(interaction.user.id, true);
 
-      // --- Roast as plain text ---
-      const roastText = `Yo ${guildName}, what kinda moderation is this? 😂`;
+      // --- Pick a random roast ---
+      let roast = roasts[Math.floor(Math.random() * roasts.length)];
+      roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
 
       // --- Embed with server stats ---
       const embed = new EmbedBuilder()
@@ -73,10 +105,10 @@ client.on('interactionCreate', async interaction => {
         )
         .setTimestamp(new Date());
 
-      // Send roast + embed to notify channel once
+      // --- Send roast + embed to notify channel once ---
       const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
       if(notifyChannel?.isTextBased()){
-        await notifyChannel.send({ content: roastText, embeds: [embed] });
+        await notifyChannel.send({ content: roast, embeds: [embed] });
       }
 
       // --- Reply ephemeral flood menu ---
@@ -92,7 +124,7 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
-    // --- Button interactions ---
+    // Button interactions
     if(interaction.isButton()){
       const cache = floodCache.get(interaction.user.id);
       if(!cache) return;
@@ -122,7 +154,7 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // --- Modal submit ---
+    // Modal submit
     if(interaction.isModalSubmit() && interaction.customId === 'custom_modal'){
       const userMessage = interaction.fields.getTextInputValue('message_input');
       await interaction.reply({ content: `Spamming your message...`, ephemeral: true });
@@ -136,10 +168,10 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// --- Login bot ---
+// Login bot
 client.login(TOKEN);
 
-// --- Railway self-ping ---
+// Railway self-ping
 setInterval(()=>{
   http.get(SELF_URL, res=>console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`))
       .on('error', err=>console.error('Self-ping error:', err));

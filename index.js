@@ -8,7 +8,7 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID; // optional if you want guild-specific commands
+const GUILD_ID = process.env.GUILD_ID; // optional
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
@@ -77,11 +77,11 @@ client.on('interactionCreate', async interaction => {
       const memberCount = guild?.memberCount || 0;
       const guildName = guild?.name || "Unknown Server";
 
-      // Prevent multiple notifications for repeated presses
-      if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
+      // Prevent multiple notifications
+      if(floodCache.has(interaction.user.id)) return;
       floodCache.set(interaction.user.id, true);
 
-      // --- Pick a random roast ---
+      // Pick a random roast
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
       roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
 
@@ -105,9 +105,9 @@ client.on('interactionCreate', async interaction => {
         )
         .setTimestamp(new Date());
 
-      // --- Send roast + embed to notify channel once ---
-      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
-      if(notifyChannel?.isTextBased()){
+      // --- Send to notify channel safely ---
+      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+      if(notifyChannel && notifyChannel.isTextBased() && notifyChannel.permissionsFor(client.user).has('SendMessages')){
         await notifyChannel.send({ content: roast, embeds: [embed] });
       }
 
@@ -122,6 +122,9 @@ client.on('interactionCreate', async interaction => {
       );
 
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+
+      // Remove from cache after 30 seconds to allow another command
+      setTimeout(() => floodCache.delete(interaction.user.id), 30000);
     }
 
     // Button interactions

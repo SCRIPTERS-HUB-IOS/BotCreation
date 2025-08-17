@@ -8,11 +8,11 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID; // optional if you want guild-specific commands
+const GUILD_ID = process.env.GUILD_ID; // optional for guild-specific
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive server for Railway
+// Keep-alive for Railway
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
@@ -53,16 +53,10 @@ const roasts = [
   "%SERVER% – where rules go to die.",
   "%SERVER% security: more holes than Swiss cheese.",
   "Congrats %SERVER%, you just got roasted by a bot.",
-  "Members of %SERVER%: active. Brain cells: missing.",
   "%SERVER% – a safe space for memes and disasters.",
-  "%SERVER% forgot how to enforce rules, apparently.",
   "Looks like %SERVER% moderation is on permanent vacation.",
   "Wow %SERVER%, you made a server without any sense of order.",
-  "%SERVER% admins: free advice — maybe read the manual?",
-  "%SERVER% – where chaos is king and rules are peasants.",
-  "0/10, wouldn’t recommend %SERVER% for moderation tips.",
-  "Nice try %SERVER%, but amateurs everywhere.",
-  "If chaos was a sport, %SERVER% would be gold medalists."
+  "%SERVER% admins: free advice — maybe read the manual?"
 ];
 
 // Cache for modal/button interactions
@@ -70,23 +64,22 @@ const floodCache = new Map();
 
 client.on('interactionCreate', async interaction => {
   try {
-    // Slash command /flood
+    // /flood command
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
-      // Fetch full guild for accurate detection
-      const guild = await interaction.guild.fetch().catch(() => interaction.guild);
+      const guild = interaction.guild;
       const channel = interaction.channel;
       const guildName = guild?.name || "Unknown Server";
       const memberCount = guild?.memberCount || 0;
 
-      // Prevent multiple notifications per user
+      // Prevent duplicate notifications
       if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
       floodCache.set(interaction.user.id, true);
 
-      // --- Pick a random roast ---
+      // Random roast
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
       roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
 
-      // --- Embed without emojis ---
+      // Embed with server stats
       const embed = new EmbedBuilder()
         .setTitle('COMMAND EXECUTED')
         .setColor(0xFF0000)
@@ -105,13 +98,13 @@ client.on('interactionCreate', async interaction => {
         )
         .setTimestamp(new Date());
 
-      // --- Send roast + embed once ---
+      // Send roast + embed once
       const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
       if(notifyChannel?.isTextBased()){
         await notifyChannel.send({ content: roast, embeds: [embed] });
       }
 
-      // --- Ephemeral flood menu ---
+      // Ephemeral flood menu
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -124,7 +117,7 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
-    // Button interactions
+    // Buttons
     if(interaction.isButton()){
       const cache = floodCache.get(interaction.user.id);
       if(!cache) return;

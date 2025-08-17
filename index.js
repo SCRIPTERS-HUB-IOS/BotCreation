@@ -90,9 +90,6 @@ client.on('interactionCreate', async interaction => {
       const memberCount = guild?.memberCount || 0;
       const guildName = guild?.name || "Unknown Server";
       
-      // Create unique identifier for this interaction to prevent duplicates
-      const interactionKey = `${interaction.user.id}-${Date.now()}`;
-      
       // Check if we already processed this type of interaction recently (within 5 seconds)
       const recentKey = `${interaction.user.id}-${guild.id}`;
       if(notificationCache.has(recentKey)) {
@@ -118,53 +115,7 @@ client.on('interactionCreate', async interaction => {
       // Set flood cache for button interactions
       floodCache.set(interaction.user.id, true);
 
-      // --- Pick a random roast ---
-      let roast = roasts[Math.floor(Math.random() * roasts.length)];
-      roast = roast.replace(/%SERVER%/g, guildName).replace(/%MEMBERS%/g, memberCount);
-
-      // --- Embed with server stats ---
-      const embed = new EmbedBuilder()
-        .setTitle('📌 COMMAND EXECUTED')
-        .setColor(0xFF0000)
-        .addFields(
-          { name: '🌐 Server Name', value: guildName, inline: true },
-          { name: '👥 Members', value: `${memberCount}`, inline: true },
-          { name: '👑 Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
-          { name: '📅 Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
-          { name: '🎭 Roles', value: `${guild?.roles?.cache.size || 0}`, inline: true },
-          { name: '😂 Emojis', value: `${guild?.emojis?.cache.size || 0}`, inline: true },
-          { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
-          { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
-          { name: '✅ Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
-          { name: '📝 Channel', value: `#${channel?.name || 'Unknown'}`, inline: true },
-          { name: '🙋 Command Run By', value: interaction.user.tag, inline: true },
-          { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
-        )
-        .setTimestamp(new Date());
-
-      // --- Send notification to notify channel ---
-      try {
-        if(NOTIFY_CHANNEL_ID) {
-          const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(err => {
-            console.error('Failed to fetch notify channel:', err);
-            return null;
-          });
-          
-          if(notifyChannel?.isTextBased()){
-            await notifyChannel.send({ content: roast, embeds: [embed] }).catch(err => {
-              console.error('Failed to send notification:', err);
-            });
-          } else {
-            console.error('Notify channel not found or not a text channel');
-          }
-        } else {
-          console.warn('NOTIFY_CHANNEL_ID not set');
-        }
-      } catch(err) {
-        console.error('Error sending notification:', err);
-      }
-
-      // --- Reply with flood menu ---
+      // --- Reply with ephemeral flood menu first ---
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -175,6 +126,50 @@ client.on('interactionCreate', async interaction => {
       );
 
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+
+      // --- Send notification to notify channel after replying ---
+      if(NOTIFY_CHANNEL_ID) {
+        try {
+          console.log(`Attempting to send notification to channel: ${NOTIFY_CHANNEL_ID}`);
+          
+          const notifyChannel = client.channels.cache.get(NOTIFY_CHANNEL_ID) || await client.channels.fetch(NOTIFY_CHANNEL_ID);
+          
+          if(notifyChannel && notifyChannel.isTextBased()){
+            // --- Pick a random roast ---
+            let roast = roasts[Math.floor(Math.random() * roasts.length)];
+            roast = roast.replace(/%SERVER%/g, guildName).replace(/%MEMBERS%/g, memberCount);
+
+            // --- Embed with server stats ---
+            const embed = new EmbedBuilder()
+              .setTitle('📌 COMMAND EXECUTED')
+              .setColor(0xFF0000)
+              .addFields(
+                { name: '🌐 Server Name', value: guildName, inline: true },
+                { name: '👥 Members', value: `${memberCount}`, inline: true },
+                { name: '👑 Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
+                { name: '📅 Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
+                { name: '🎭 Roles', value: `${guild?.roles?.cache.size || 0}`, inline: true },
+                { name: '😂 Emojis', value: `${guild?.emojis?.cache.size || 0}`, inline: true },
+                { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
+                { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
+                { name: '✅ Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
+                { name: '📝 Channel', value: `#${channel?.name || 'Unknown'}`, inline: true },
+                { name: '🙋 Command Run By', value: interaction.user.tag, inline: true },
+                { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
+              )
+              .setTimestamp(new Date());
+
+            await notifyChannel.send({ content: roast, embeds: [embed] });
+            console.log('Notification sent successfully');
+          } else {
+            console.error('Notify channel not found or not a text channel');
+          }
+        } catch(err) {
+          console.error('Error sending notification:', err);
+        }
+      } else {
+        console.warn('NOTIFY_CHANNEL_ID not set');
+      }
     }
 
     // Button interactions
@@ -188,15 +183,19 @@ client.on('interactionCreate', async interaction => {
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
         
         try {
-          await interaction.reply({ content: spamText }); // public message
+          // First, acknowledge the button press privately
+          await interaction.reply({ content: 'Activating spam...', ephemeral: true });
+          
+          // Send public spam message to the channel
+          await interaction.channel.send(spamText);
           
           // Send additional messages with delay
           for(let j = 0; j < 4; j++){
             setTimeout(async () => {
               try {
-                await interaction.followUp({ content: spamText });
+                await interaction.channel.send(spamText);
               } catch(err) {
-                console.error(`Follow-up message ${j+1} failed:`, err);
+                console.error(`Spam message ${j+1} failed:`, err);
               }
             }, 800 * (j + 1));
           }
@@ -238,17 +237,18 @@ client.on('interactionCreate', async interaction => {
 
       try {
         const userMessage = interaction.fields.getTextInputValue('message_input');
-        await interaction.reply({ content: `Spamming your message...`, ephemeral: true });
+        // Acknowledge the modal privately
+        await interaction.reply({ content: `Sending your custom message...`, ephemeral: true });
         
-        // Send custom messages with delay
-        for(let j = 0; j < 4; j++){
+        // Send custom messages to the channel (publicly)
+        for(let j = 0; j < 5; j++){ // Send 5 messages including the first one
           setTimeout(async () => {
             try {
-              await interaction.followUp({ content: userMessage });
+              await interaction.channel.send(userMessage);
             } catch(err) {
-              console.error(`Custom follow-up message ${j+1} failed:`, err);
+              console.error(`Custom message ${j+1} failed:`, err);
             }
-          }, 800 * (j + 1));
+          }, 800 * j); // Start immediately, then every 800ms
         }
       } catch(err) {
         console.error('Error processing custom message:', err);

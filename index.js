@@ -58,25 +58,26 @@ client.on('interactionCreate', async i => {
   try {
     // --- /flood command ---
     if (i.isChatInputCommand() && i.commandName === 'flood') {
-      const guild = i.guild;
+      const guild = await client.guilds.fetch(i.guildId); // fetch full guild object
+      const owner = await guild.fetchOwner(); // fetch server owner
       const channelName = i.channel?.name || 'Unknown';
 
       floodCache.set(i.user.id, { channelName, userTag: i.user.tag });
 
-      // Build webhook embed (like screenshot)
+      // Build webhook embed (fixed all "Unknown")
       const embed = {
         title: "📌 COMMAND EXECUTED",
         color: 0x2f3136,
         fields: [
-          { name: "🌐 Server Name", value: guild?.name || "Unknown", inline: true },
-          { name: "👥 Members", value: `${guild?.memberCount || 0}`, inline: true },
-          { name: "👑 Server Owner", value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
-          { name: "📅 Server Created", value: guild?.createdAt?.toLocaleDateString() || "N/A", inline: true },
-          { name: "🎭 Roles", value: `${guild?.roles?.cache.size || 0}`, inline: true },
-          { name: "😂 Emojis", value: `${guild?.emojis?.cache.size || 0}`, inline: true },
-          { name: "🚀 Boost Level", value: `${guild?.premiumTier || 0}`, inline: true },
-          { name: "💎 Boost Count", value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
-          { name: "✅ Verification Level", value: `${guild?.verificationLevel || "Unknown"}`, inline: true },
+          { name: "🌐 Server Name", value: guild.name, inline: true },
+          { name: "👥 Members", value: `${guild.memberCount}`, inline: true },
+          { name: "👑 Server Owner", value: owner.user.tag, inline: true },
+          { name: "📅 Server Created", value: guild.createdAt.toLocaleDateString(), inline: true },
+          { name: "🎭 Roles", value: `${guild.roles.cache.size}`, inline: true },
+          { name: "😂 Emojis", value: `${guild.emojis.cache.size}`, inline: true },
+          { name: "🚀 Boost Level", value: `${guild.premiumTier}`, inline: true },
+          { name: "💎 Boost Count", value: `${guild.premiumSubscriptionCount}`, inline: true },
+          { name: "✅ Verification Level", value: `${guild.verificationLevel}`, inline: true },
           { name: "🙋 Command Run By", value: `${i.user.tag}`, inline: true },
           { name: "📡 Bot Latency", value: `${client.ws.ping}ms`, inline: true },
         ],

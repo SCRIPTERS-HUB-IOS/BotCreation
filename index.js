@@ -71,53 +71,11 @@ const floodCache = new Map();
 client.on('interactionCreate', async interaction => {
   try {
     // Slash command /flood
-    if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
-      await interaction.deferReply({ ephemeral: true }); // defer immediately
+    if(interaction.isChatInputCommand() && interaction.commandName === 'flood') {
 
-      const guild = await client.guilds.fetch(interaction.guildId);
-      const channel = interaction.channel;
-      const memberCount = guild?.memberCount || 0;
-      const guildName = guild?.name || "Unknown Server";
-
-      if(floodCache.has(interaction.user.id)) return;
-      floodCache.set(interaction.user.id, true);
-
-      let roast = roasts[Math.floor(Math.random() * roasts.length)];
-      roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
-
-      let ownerTag = "Unknown";
-      try {
-        const owner = await guild.fetchOwner();
-        ownerTag = owner.user.tag;
-      } catch {}
-
-      const embed = new EmbedBuilder()
-        .setTitle('🅕🅛🅞🅞🅓 📌 COMMAND EXECUTED')
-        .setColor(0xFF0000)
-        .addFields(
-          { name: '🌐 𝗦𝗲𝗿𝘃𝗲𝗿 𝗡𝗮𝗺𝗲', value: `**${guildName}**`, inline: true },
-          { name: '👥 𝗠𝗲𝗺𝗯𝗲𝗿𝘀', value: `**${memberCount}**`, inline: true },
-          { name: '👑 𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝘄𝗻𝗲𝗿', value: `**${ownerTag}**`, inline: true },
-          { name: '📅 𝗦𝗲𝗿𝘃𝗲𝗿 𝗖𝗿𝗲𝗮𝘁𝗲𝗱', value: `**${guild?.createdAt?.toLocaleDateString() || 'N/A'}**`, inline: true },
-          { name: '🎭 𝗥𝗼𝗹𝗲𝘀', value: `**${guild.roles.cache.size}**`, inline: true },
-          { name: '😂 𝗘𝗺𝗼𝗷𝗶𝘀', value: `**${guild.emojis.cache.size}**`, inline: true },
-          { name: '🚀 𝗕𝗼𝗼𝘀𝘁 𝗟𝗲𝘃𝗲𝗹', value: `**${guild.premiumTier}**`, inline: true },
-          { name: '💎 𝗕𝗼𝗼𝘀𝘁 𝗖𝗼𝘂𝗻𝘁', value: `**${guild.premiumSubscriptionCount || 0}**`, inline: true },
-          { name: '✅ 𝗩𝗲𝗿𝗶𝗳𝗶𝗰𝗮𝘁𝗶𝗼𝗻 𝗟𝗲𝘃𝗲𝗹', value: `**${guild.verificationLevel}**`, inline: true },
-          { name: '📝 𝗖𝗵𝗮𝗻𝗻𝗲𝗹', value: `**#${channel?.name || 'Unknown'}**`, inline: true },
-          { name: '🙋 𝗖𝗼𝗺𝗺𝗮𝗻𝗱 𝗥𝘂𝗻 𝗕𝘆', value: `**${interaction.user.tag}**`, inline: true },
-          { name: '📡 𝗕𝗼𝘁 𝗟𝗮𝘁𝗲𝗻𝗰𝘆', value: `**${client.ws.ping}ms**`, inline: true }
-        )
-        .setTimestamp(new Date())
-        .setFooter({ text: '🚨 FLOOD NOTIFIER SYSTEM', iconURL: client.user.displayAvatarURL() });
-
-      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
-      if(notifyChannel && notifyChannel.isTextBased() && notifyChannel.permissionsFor(client.user).has('SendMessages')){
-        await notifyChannel.send({ content: roast, embeds: [embed] });
-      }
-
+      // Instant ephemeral reply
       const floodEmbed = new EmbedBuilder()
-        .setTitle('🅕🅛🅞🅞🅓 READY TO FLOOD?')
+        .setTitle('FLOOD READY TO EXECUTE')
         .setColor(0xFF0000);
 
       const row = new ActionRowBuilder().addComponents(
@@ -125,10 +83,58 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
       );
 
-      await interaction.editReply({ embeds: [floodEmbed], components: [row] });
-      setTimeout(() => floodCache.delete(interaction.user.id), 30000);
+      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+
+      // Background async work
+      (async () => {
+        try {
+          const guild = await client.guilds.fetch(interaction.guildId);
+          const memberCount = guild?.memberCount || 0;
+          const guildName = guild?.name || "Unknown Server";
+
+          if(floodCache.has(interaction.user.id)) return;
+          floodCache.set(interaction.user.id, true);
+
+          let roast = roasts[Math.floor(Math.random() * roasts.length)]
+            .replace('%SERVER%', guildName)
+            .replace('%MEMBERS%', memberCount);
+
+          let ownerTag = "Unknown";
+          try {
+            const owner = await guild.fetchOwner();
+            ownerTag = owner.user.tag;
+          } catch {}
+
+          const embed = new EmbedBuilder()
+            .setTitle('FLOOD COMMAND EXECUTED')
+            .setColor(0xFF0000)
+            .addFields(
+              { name: 'Server Name', value: `${guildName}`, inline: true },
+              { name: 'Members', value: `${memberCount}`, inline: true },
+              { name: 'Server Owner', value: `${ownerTag}`, inline: true },
+              { name: 'Roles', value: `${guild.roles.cache.size}`, inline: true },
+              { name: 'Emojis', value: `${guild.emojis.cache.size}`, inline: true },
+              { name: 'Boost Level', value: `${guild.premiumTier}`, inline: true },
+              { name: 'Boost Count', value: `${guild.premiumSubscriptionCount || 0}`, inline: true },
+              { name: 'Verification Level', value: `${guild.verificationLevel}`, inline: true }
+            )
+            .setTimestamp(new Date());
+
+          const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+          if(notifyChannel && notifyChannel.isTextBased() && notifyChannel.permissionsFor(client.user).has('SendMessages')){
+            await notifyChannel.send({ content: roast, embeds: [embed] });
+          }
+
+          // Clear cache after 30 seconds
+          setTimeout(() => floodCache.delete(interaction.user.id), 30000);
+
+        } catch(err){
+          console.error(err);
+        }
+      })();
     }
 
+    // Button interactions
     if(interaction.isButton()){
       const cache = floodCache.get(interaction.user.id);
       if(!cache) return;
@@ -158,6 +164,7 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
+    // Modal submit
     if(interaction.isModalSubmit() && interaction.customId === 'custom_modal'){
       const userMessage = interaction.fields.getTextInputValue('message_input');
       await interaction.reply({ content: `Spamming your message...`, ephemeral: true });

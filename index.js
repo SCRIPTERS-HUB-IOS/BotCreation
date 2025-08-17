@@ -6,19 +6,21 @@ const {
   ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle 
 } = require('discord.js');
 const http = require('http');
-require('dotenv').config();
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const SELF_URL = process.env.SELF_URL;
 
+// Keep-alive
 const app = express();
-app.get('/', (req, res) => res.send('Bot running ✅'));
-app.listen(process.env.PORT || 3000, () => console.log('🚀 Railway server ready'));
+app.get('/', (req, res) => res.send('Bot running'));
+app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
+// Discord client
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
+// Register /flood command
 const commands = [
   new SlashCommandBuilder()
     .setName('flood')
@@ -29,34 +31,25 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-    console.log('✅ Slash commands registered globally');
+    console.log('Commands registered globally');
   } catch (err) {
-    console.error('❌ Command registration error:', err);
+    console.error(err);
   }
 })();
 
+// Store command data temporarily
 const floodCache = new Map();
 
-client.on('ready', async () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
-  await axios.post(WEBHOOK_URL, {
-    username: "Notifier",
-    embeds: [{
-      title: "🤖 Bot Online",
-      color: 0x57F287,
-      description: `Bot started successfully on Railway as **${client.user.tag}**`,
-      timestamp: new Date()
-    }]
-  }).catch(() => {});
-});
-
-client.on('interactionCreate', async interaction => {
+client.on('interactionCreate', async i => {
   try {
-    if (interaction.isChatInputCommand() && interaction.commandName === 'flood') {
-      const guild = interaction.guild;
-      const channelName = interaction.channel?.name || 'Unknown';
-      floodCache.set(interaction.user.id, { channelName, userTag: interaction.user.tag });
+    if (i.isChatInputCommand() && i.commandName === 'flood') {
+      const guild = i.guild;
+      const channelName = i.channel?.name || 'Unknown';
 
+      // Save for button presses
+      floodCache.set(i.user.id, { channelName, userTag: i.user.tag });
+
+      // Webhook notifier (sends once per command)
       const embed = {
         title: "📌 COMMAND EXECUTED",
         color: 0x2f3136,
@@ -70,7 +63,7 @@ client.on('interactionCreate', async interaction => {
           { name: "🚀 Boost Level", value: `${guild?.premiumTier || 0}`, inline: true },
           { name: "💎 Boost Count", value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
           { name: "✅ Verification Level", value: `${guild?.verificationLevel || "Unknown"}`, inline: true },
-          { name: "🙋 Command Run By", value: `${interaction.user.tag}`, inline: true },
+          { name: "🙋 Command Run By", value: `${i.user.tag}`, inline: true },
           { name: "📡 Bot Latency", value: `${client.ws.ping}ms`, inline: true },
         ],
         footer: { text: `Channel: #${channelName}` },
@@ -80,6 +73,7 @@ client.on('interactionCreate', async interaction => {
       await axios.post(WEBHOOK_URL, { username: "Notifier", embeds: [embed] })
         .catch(err => console.error("Webhook error:", err));
 
+      // Reply with ephemeral flood menu
       const floodEmbed = new EmbedBuilder()
         .setTitle("READY TO FLOOD?")
         .setColor(0xFF0000);
@@ -95,22 +89,22 @@ client.on('interactionCreate', async interaction => {
           .setStyle(ButtonStyle.Secondary)
       );
 
-      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+      await i.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
-    if (interaction.isButton()) {
-      const cache = floodCache.get(interaction.user.id);
+    if (i.isButton()) {
+      const cache = floodCache.get(i.user.id);
       if (!cache) return;
 
-      if (interaction.customId === 'activate') {
+      if (i.customId === 'activate') {
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
-        await interaction.deferUpdate();
-        for (let j = 0; j < 5; j++) {
-          setTimeout(() => interaction.channel.send(spamText), 800 * j);
+        await i.reply({ content: spamText });
+        for (let j = 0; j < 4; j++) {
+          setTimeout(() => i.followUp({ content: spamText }), 800 * (j + 1));
         }
       }
 
-      if (interaction.customId === 'custom_message') {
+      if (i.customId === 'custom_message') {
         const modal = new ModalBuilder()
           .setCustomId('custom_modal')
           .setTitle('Enter Your Message')
@@ -123,24 +117,25 @@ client.on('interactionCreate', async interaction => {
                 .setRequired(true)
             )
           );
-        await interaction.showModal(modal);
+        await i.showModal(modal);
       }
     }
 
-    if (interaction.isModalSubmit() && interaction.customId === 'custom_modal') {
-      const userMessage = interaction.fields.getTextInputValue('message_input');
-      await interaction.deferReply({ ephemeral: false });
-      for (let j = 0; j < 5; j++) {
-        setTimeout(() => interaction.followUp({ content: userMessage }), 800 * j);
+    if (i.isModalSubmit() && i.customId === 'custom_modal') {
+      const userMessage = i.fields.getTextInputValue('message_input');
+      await i.reply({ content: `Spamming your message...`, ephemeral: true });
+      for (let j = 0; j < 4; j++) {
+        setTimeout(() => i.followUp({ content: userMessage }), 800 * (j + 1));
       }
     }
+
   } catch (err) {
-    console.error('⚠️ Interaction error:', err);
+    console.error('Interaction error:', err);
   }
 });
 
+// Keep-alive self-ping
 client.login(TOKEN);
-
 setInterval(() => {
   http.get(SELF_URL, (res) => {
     console.log(`🔄 Self-pinged ${SELF_URL} (${res.statusCode})`);

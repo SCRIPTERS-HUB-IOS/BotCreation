@@ -7,19 +7,20 @@ const {
 } = require('discord.js');
 const http = require('http');
 
+// Env Vars from Railway
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const WEBHOOK_URL = process.env.WEBHOOK_URL;
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive
+// Keep-alive webserver for Railway
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
-// Register /flood command
+// Slash command registration
 const commands = [
   new SlashCommandBuilder()
     .setName('flood')
@@ -36,19 +37,18 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   }
 })();
 
-// Store command data temporarily
+// Cache user flood context
 const floodCache = new Map();
 
 client.on('interactionCreate', async i => {
   try {
-    // --- Flood Command ---
+    // --- /flood Command ---
     if (i.isChatInputCommand() && i.commandName === 'flood') {
       const channelName = i.channel?.name || 'Unknown';
 
-      // Save for button presses
       floodCache.set(i.user.id, { channelName, userTag: i.user.tag });
 
-      // Webhook for command used
+      // Webhook notification (ONLY when /flood used)
       await axios.post(WEBHOOK_URL, {
         content: `[${i.user.tag}] has used /flood in [${channelName}]`
       }).catch(err => console.error('Webhook error:', err));
@@ -74,17 +74,8 @@ client.on('interactionCreate', async i => {
     // --- Button Press ---
     if (i.isButton()) {
       const cache = floodCache.get(i.user.id);
-      if (!cache) return; // if user didn't run /flood, do nothing
+      if (!cache) return;
 
-      const action = i.customId === 'activate' ? 'Activate' : 'CustomMessage';
-      const channelName = cache.channelName;
-
-      // Webhook for button pressed
-      await axios.post(WEBHOOK_URL, {
-        content: `[${cache.userTag}] has pressed [${action}] in [${channelName}]`
-      }).catch(err => console.error('Webhook error:', err));
-
-      // Execute button action
       if (i.customId === 'activate') {
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
         await i.reply({ content: spamText });
@@ -108,8 +99,6 @@ client.on('interactionCreate', async i => {
           );
         await i.showModal(modal);
       }
-
-      // DO NOT delete the cache — allow multiple button presses
     }
 
     // --- Modal Submit ---
@@ -126,7 +115,7 @@ client.on('interactionCreate', async i => {
   }
 });
 
-// --- 24/7 Self-Ping ---
+// --- 24/7 Self-Ping for Railway ---
 client.login(TOKEN);
 setInterval(() => {
   http.get(SELF_URL, (res) => {

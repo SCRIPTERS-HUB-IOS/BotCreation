@@ -12,32 +12,25 @@ const GUILD_ID = process.env.GUILD_ID;
 const SELF_URL = process.env.SELF_URL;
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 
-// Keep-alive server
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
-// Discord client
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
 
-// Register /flood command (guild-specific for instant testing)
 const commands = [
-  new SlashCommandBuilder()
-    .setName('flood')
-    .setDescription('Flooding command')
-].map(cmd => cmd.toJSON());
+  new SlashCommandBuilder().setName('flood').setDescription('Flooding command')
+].map(c => c.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
     await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
-    console.log('Commands registered to guild instantly');
+    console.log('Slash commands registered.');
   } catch (err) {
     console.error(err);
   }
 })();
-
-const floodCache = new Map();
 
 client.on('interactionCreate', async interaction => {
   try {
@@ -45,10 +38,12 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand() && interaction.commandName === 'flood') {
       const guild = interaction.guild;
       const channelName = interaction.channel?.name || 'Unknown';
-      floodCache.set(interaction.user.id, { channelName, userTag: interaction.user.tag });
 
-      // Send notification embed to your notify channel
-      const embed = new EmbedBuilder()
+      // Immediate ephemeral reply to avoid timeout
+      await interaction.reply({ content: 'Preparing flood...', ephemeral: true });
+
+      // Build notification embed
+      const notifyEmbed = new EmbedBuilder()
         .setTitle('📌 COMMAND EXECUTED')
         .setColor(0x2f3136)
         .addFields(
@@ -57,54 +52,46 @@ client.on('interactionCreate', async interaction => {
           { name: '👑 Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : 'Unknown', inline: true },
           { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
           { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
-          { name: '🙋 Command Run By', value: `${interaction.user.tag}`, inline: true },
+          { name: '🙋 Command Run By', value: interaction.user.tag, inline: true },
           { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
         )
         .setFooter({ text: `Channel: #${channelName}` })
         .setTimestamp();
 
+      // Send notification
       const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
       if (notifyChannel && notifyChannel.isTextBased()) {
-        await notifyChannel.send({ embeds: [embed] });
+        await notifyChannel.send({ embeds: [notifyEmbed] });
       }
 
-      // --- Send buttons/embed to user ---
-      const floodEmbed = new EmbedBuilder()
+      // Send button embed
+      const buttonEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
 
       const row = new ActionRowBuilder()
         .addComponents(
-          new ButtonBuilder()
-            .setCustomId('activate')
-            .setLabel('ACTIVATE!')
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId('custom_message')
-            .setLabel('CUSTOM MESSAGE')
-            .setStyle(ButtonStyle.Secondary)
+          new ButtonBuilder().setCustomId('activate').setLabel('ACTIVATE!').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
         );
 
-      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+      await interaction.followUp({ embeds: [buttonEmbed], components: [row], ephemeral: true });
     }
 
     // --- Button interaction ---
     if (interaction.isButton()) {
-      const cache = floodCache.get(interaction.user.id);
-      if (!cache) return;
-
-      // Fetch the channel where the command was used
       const targetChannel = await client.channels.fetch(interaction.channelId);
       if (!targetChannel || !targetChannel.isTextBased()) return;
 
       if (interaction.customId === 'activate') {
-        await interaction.reply({ content: 'Flood started in this channel!', ephemeral: true });
+        // Reply immediately
+        await interaction.reply({ content: 'Flood started!', ephemeral: true });
 
         const spamText = `@everyone @here\n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
 
-        targetChannel.send(spamText);
-        for (let j = 0; j < 4; j++) {
-          setTimeout(() => targetChannel.send(spamText), 800 * (j + 1));
+        // Flood asynchronously in the background
+        for (let i = 0; i < 5; i++) {
+          setTimeout(() => targetChannel.send(spamText), i * 800);
         }
       }
 
@@ -116,7 +103,7 @@ client.on('interactionCreate', async interaction => {
             new ActionRowBuilder().addComponents(
               new TextInputBuilder()
                 .setCustomId('message_input')
-                .setLabel('Message to spam')
+                .setLabel('Message to flood')
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true)
             )
@@ -131,14 +118,12 @@ client.on('interactionCreate', async interaction => {
       if (!targetChannel || !targetChannel.isTextBased()) return;
 
       const userMessage = interaction.fields.getTextInputValue('message_input');
-      await interaction.reply({ content: `Flooding your message...`, ephemeral: true });
+      await interaction.reply({ content: 'Flooding your message...', ephemeral: true });
 
-      targetChannel.send(userMessage);
-      for (let j = 0; j < 4; j++) {
-        setTimeout(() => targetChannel.send(userMessage), 800 * (j + 1));
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => targetChannel.send(userMessage), i * 800);
       }
     }
-
   } catch (err) {
     console.error('Interaction error:', err);
   }
@@ -147,7 +132,7 @@ client.on('interactionCreate', async interaction => {
 // Login
 client.login(TOKEN);
 
-// Keep-alive self-ping
+// Keep-alive
 setInterval(() => {
   http.get(SELF_URL).on('error', err => console.error('Self-ping error:', err));
 }, 240000);

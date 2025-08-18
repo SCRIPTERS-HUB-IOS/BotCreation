@@ -3,21 +3,21 @@ const http = require('http');
 const { 
   Client, GatewayIntentBits, REST, Routes, 
   SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, 
-  ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, Events 
+  ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, Events, Partials
 } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID; // optional if you want guild-specific commands
+const GUILD_ID = process.env.GUILD_ID; 
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive server for Railway
+// Keep-alive webserver
 const app = express();
-app.get('/', (req, res) => res.send('Bot running'));
-app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
+app.get('/', (req, res) => res.send('Bot running ✅'));
+app.listen(process.env.PORT || 3000, () => console.log('Web server ready'));
 
-// Discord client WITH PROPER INTENTS
+// Discord client with full intents/partials
 const client = new Client({ 
   intents: [
     GatewayIntentBits.Guilds, 
@@ -25,17 +25,18 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildPresences
-  ] 
+  ],
+  partials: [Partials.GuildMember, Partials.Message, Partials.Channel]
 });
 
-// Register /flood command
+// Register commands
 const commands = [
-  new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON()
+  new SlashCommandBuilder().setName('flood').setDescription('Trigger flood notifier').toJSON()
 ];
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
-    if(GUILD_ID){
+    if (GUILD_ID) {
       await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
       console.log('Slash command registered to guild.');
     } else {
@@ -45,7 +46,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   } catch (err) { console.error(err); }
 })();
 
-// Funny roasts array
+// Funny roast lines
 const roasts = [
   "Yo %SERVER%, did you hire a hamster to moderate this place? 😂",
   "%SERVER% members: active. Moderation: asleep.",
@@ -59,19 +60,21 @@ const roasts = [
   "Boosts in %SERVER% can’t fix the chaos inside.",
 ];
 
-// Cache for modal/button interactions
+// Cache
 const floodCache = new Map();
-// Fix: notifier per run, never duplicates
 let lastNotifyId = null;
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
-    // Slash command /flood
-    if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
+    // /flood command
+    if (interaction.isChatInputCommand() && interaction.commandName === 'flood') {
       const guild = interaction.guild;
-      const channel = interaction.channel;
-      const memberCount = guild?.memberCount || 0;
+      await guild.members.fetch(); // ensure cache
+      await guild.roles.fetch();
+      await guild.emojis.fetch();
+
       const guildName = guild?.name || "Unknown Server";
+      const memberCount = guild?.memberCount || 0;
 
       floodCache.set(interaction.user.id, true);
 
@@ -87,28 +90,27 @@ client.on(Events.InteractionCreate, async interaction => {
           { name: '🌐 Server Name', value: guildName, inline: true },
           { name: '👥 Members', value: `${memberCount}`, inline: true },
           { name: '👑 Server Owner', value: guild?.ownerId ? `<@${guild.ownerId}>` : "Unknown", inline: true },
-          { name: '📅 Server Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
+          { name: '📅 Created', value: guild?.createdAt?.toLocaleDateString() || 'N/A', inline: true },
           { name: '🎭 Roles', value: `${guild?.roles?.cache.size || 0}`, inline: true },
           { name: '😂 Emojis', value: `${guild?.emojis?.cache.size || 0}`, inline: true },
           { name: '🚀 Boost Level', value: `${guild?.premiumTier || 0}`, inline: true },
           { name: '💎 Boost Count', value: `${guild?.premiumSubscriptionCount || 0}`, inline: true },
-          { name: '✅ Verification Level', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
-          { name: '📝 Channel', value: `#${channel?.name || 'Unknown'}`, inline: true },
-          { name: '🙋 Command Run By', value: interaction.user.tag, inline: true },
-          { name: '📡 Bot Latency', value: `${client.ws.ping}ms`, inline: true }
+          { name: '✅ Verification', value: `${guild?.verificationLevel || 'Unknown'}`, inline: true },
+          { name: '🙋 Run By', value: interaction.user.tag, inline: true },
+          { name: '📡 Ping', value: `${client.ws.ping}ms`, inline: true }
         )
-        .setTimestamp(new Date());
+        .setTimestamp();
 
-      // --- FIX: notifier only once per /flood run ---
-      if(lastNotifyId !== interaction.id){
+      // --- FIX: notifier only ONCE ---
+      if (lastNotifyId !== interaction.id) {
         lastNotifyId = interaction.id;
-        const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
-        if(notifyChannel?.isTextBased()){
+        const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(()=>null);
+        if (notifyChannel?.isTextBased()) {
           await notifyChannel.send({ content: roast, embeds: [embed] });
         }
       }
 
-      // Flood controller
+      // Buttons UI
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -121,21 +123,20 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
-    // Button interactions
-    if(interaction.isButton()){
+    // Button handler
+    if (interaction.isButton()) {
       const cache = floodCache.get(interaction.user.id);
-      if(!cache) return;
+      if (!cache) return;
 
-      if(interaction.customId === 'activate'){
-        const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
+      if (interaction.customId === 'activate') {
+        const spamText = `@everyone 🚨 RAID ALERT 🚨 FREE BOT: https://discord.gg/6AGgHe4MKb`;
         await interaction.deferReply({ ephemeral: false });
-        await interaction.followUp({ content: spamText });
-        for(let j=0;j<4;j++){
-          setTimeout(()=>interaction.followUp({ content: spamText }), 800*(j+1));
+        for (let j = 0; j < 5; j++) {
+          setTimeout(() => interaction.followUp({ content: spamText }), 600 * (j+1));
         }
       }
 
-      if(interaction.customId === 'custom_message'){
+      if (interaction.customId === 'custom_message') {
         const modal = new ModalBuilder()
           .setCustomId('custom_modal')
           .setTitle('Enter Your Message')
@@ -153,24 +154,27 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     // Modal submit
-    if(interaction.isModalSubmit() && interaction.customId === 'custom_modal'){
+    if (interaction.isModalSubmit() && interaction.customId === 'custom_modal') {
       const userMessage = interaction.fields.getTextInputValue('message_input');
       await interaction.reply({ content: `Spamming your message...`, ephemeral: true });
-      for(let j=0;j<4;j++){
-        setTimeout(()=>interaction.followUp({ content: userMessage }), 800*(j+1));
+      for (let j = 0; j < 5; j++) {
+        setTimeout(() => interaction.followUp({ content: userMessage }), 600 * (j+1));
       }
     }
 
-  } catch(err){
+  } catch (err) {
     console.error('Interaction error:', err);
   }
 });
 
-// Login bot
+// Bot login
+client.once('ready', () => {
+  console.log(`Bot online as ${client.user.tag}`);
+});
 client.login(TOKEN);
 
 // Railway self-ping
-setInterval(()=>{
-  http.get(SELF_URL, res=>console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`))
-      .on('error', err=>console.error('Self-ping error:', err));
+setInterval(() => {
+  http.get(SELF_URL, res => console.log(`Self-ping OK: ${res.statusCode}`))
+      .on('error', err => console.error('Self-ping failed:', err.message));
 }, 240000);

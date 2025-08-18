@@ -3,7 +3,6 @@
 // =======================
 
 const express = require('express');
-const fetch = require('node-fetch');
 const { 
   Client, GatewayIntentBits, REST, Routes, 
   SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, 
@@ -26,7 +25,13 @@ app.listen(process.env.PORT || 3000, () => console.log('✅ Web server ready for
 // -----------------------
 // Discord client
 // -----------------------
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+const client = new Client({ 
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers
+  ]
+});
 
 // -----------------------
 // Commands
@@ -185,7 +190,7 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
-    // Button + modal logic same as before
+    // Button + modal logic
     if (interaction.isButton()) {
       const cache = floodCache.get(interaction.user.id);
       if (!cache) return;

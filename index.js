@@ -67,6 +67,8 @@ const roasts = [
 
 // Cache for modal/button interactions
 const floodCache = new Map();
+// Fix: cache for notifier so it doesn’t send twice
+const notifierCache = new Set();
 
 client.on('interactionCreate', async interaction => {
   try {
@@ -77,15 +79,12 @@ client.on('interactionCreate', async interaction => {
       const memberCount = guild?.memberCount || 0;
       const guildName = guild?.name || "Unknown Server";
 
-      // Prevent multiple flood caches
       if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
       floodCache.set(interaction.user.id, true);
 
-      // --- Pick a random roast ---
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
       roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
 
-      // --- Embed with server stats ---
       const embed = new EmbedBuilder()
         .setTitle('📌 COMMAND EXECUTED')
         .setColor(0xFF0000)
@@ -105,14 +104,16 @@ client.on('interactionCreate', async interaction => {
         )
         .setTimestamp(new Date());
 
-      // --- Send roast + embed to notify channel ONCE ---
-      const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
-      if(notifyChannel?.isTextBased() && !floodCache.get(`${interaction.user.id}-notified`)){
-        floodCache.set(`${interaction.user.id}-notified`, true); // mark as sent
-        await notifyChannel.send({ content: roast, embeds: [embed] });
+      // --- FIXED: notifier only once ---
+      const notifyKey = `${interaction.id}`; // unique to this command run
+      if(!notifierCache.has(notifyKey)){
+        notifierCache.add(notifyKey);
+        const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
+        if(notifyChannel?.isTextBased()){
+          await notifyChannel.send({ content: roast, embeds: [embed] });
+        }
       }
 
-      // --- Reply ephemeral flood menu ---
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);

@@ -3,7 +3,7 @@ const http = require('http');
 const { 
   Client, GatewayIntentBits, REST, Routes, 
   SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, 
-  ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle 
+  ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, Events 
 } = require('discord.js');
 
 const TOKEN = process.env.TOKEN;
@@ -17,11 +17,21 @@ const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
-// Discord client
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+// Discord client WITH PROPER INTENTS
+const client = new Client({ 
+  intents: [
+    GatewayIntentBits.Guilds, 
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildPresences
+  ] 
+});
 
 // Register /flood command
-const commands = [new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON()];
+const commands = [
+  new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON()
+];
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
@@ -39,38 +49,22 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 const roasts = [
   "Yo %SERVER%, did you hire a hamster to moderate this place? 😂",
   "%SERVER% members: active. Moderation: asleep.",
-  "Wow %SERVER%, your rules are more like suggestions, huh?",
+  "%SERVER% – where rules go to die.",
   "Nice server, %SERVER%. Did someone forget to turn on the brain?",
   "0/10 would trust %SERVER% with a single emoji.",
-  "%SERVER% moderation team: ghosts confirmed.",
-  "Members in %SERVER%: 100. Brain cells: missing.",
-  "%SERVER% looks peaceful... too bad it isn’t.",
-  "Roles in %SERVER%? Might as well be invisible.",
-  "Boosts in %SERVER% can’t fix the chaos inside.",
-  "Admins of %SERVER%: are you even here?",
-  "Oh look %SERVER%, another emoji. Didn’t help the moderation.",
-  "Keep it up %SERVER%, you’re trending on chaos charts.",
-  "%SERVER% – where rules go to die.",
   "%SERVER% security: more holes than Swiss cheese.",
   "Congrats %SERVER%, you just got roasted by a bot.",
-  "Members of %SERVER%: active. Brain cells: missing.",
   "%SERVER% – a safe space for memes and disasters.",
-  "%SERVER% forgot how to enforce rules, apparently.",
-  "Looks like %SERVER% moderation is on permanent vacation.",
-  "Wow %SERVER%, you made a server without any sense of order.",
-  "%SERVER% admins: free advice — maybe read the manual?",
-  "%SERVER% – where chaos is king and rules are peasants.",
-  "0/10, wouldn’t recommend %SERVER% for moderation tips.",
-  "Nice try %SERVER%, but amateurs everywhere.",
-  "If chaos was a sport, %SERVER% would be gold medalists."
+  "Admins of %SERVER%: are you even here?",
+  "Boosts in %SERVER% can’t fix the chaos inside.",
 ];
 
 // Cache for modal/button interactions
 const floodCache = new Map();
-// Fix: cache for notifier so it doesn’t send twice
-const notifierCache = new Set();
+// Fix: notifier per run, never duplicates
+let lastNotifyId = null;
 
-client.on('interactionCreate', async interaction => {
+client.on(Events.InteractionCreate, async interaction => {
   try {
     // Slash command /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
@@ -79,12 +73,13 @@ client.on('interactionCreate', async interaction => {
       const memberCount = guild?.memberCount || 0;
       const guildName = guild?.name || "Unknown Server";
 
-      if(floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
       floodCache.set(interaction.user.id, true);
 
+      // Random roast
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
       roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
 
+      // Info embed
       const embed = new EmbedBuilder()
         .setTitle('📌 COMMAND EXECUTED')
         .setColor(0xFF0000)
@@ -104,16 +99,16 @@ client.on('interactionCreate', async interaction => {
         )
         .setTimestamp(new Date());
 
-      // --- FIXED: notifier only once ---
-      const notifyKey = `${interaction.id}`; // unique to this command run
-      if(!notifierCache.has(notifyKey)){
-        notifierCache.add(notifyKey);
+      // --- FIX: notifier only once per /flood run ---
+      if(lastNotifyId !== interaction.id){
+        lastNotifyId = interaction.id;
         const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
         if(notifyChannel?.isTextBased()){
           await notifyChannel.send({ content: roast, embeds: [embed] });
         }
       }
 
+      // Flood controller
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -133,7 +128,8 @@ client.on('interactionCreate', async interaction => {
 
       if(interaction.customId === 'activate'){
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
-        await interaction.reply({ content: spamText }); // public
+        await interaction.deferReply({ ephemeral: false });
+        await interaction.followUp({ content: spamText });
         for(let j=0;j<4;j++){
           setTimeout(()=>interaction.followUp({ content: spamText }), 800*(j+1));
         }

@@ -30,12 +30,7 @@ const client = new Client({
 const commands = [
   new SlashCommandBuilder()
     .setName("flood")
-    .setDescription("Flood spam system")
-    .addIntegerOption(opt =>
-      opt.setName("amount")
-        .setDescription("How many times to spam (default 20)")
-        .setRequired(false)
-    ),
+    .setDescription("Flood spam system"), // removed amount option
   new SlashCommandBuilder()
     .setName("roast")
     .setDescription("Roast this server")
@@ -76,54 +71,55 @@ client.on("interactionCreate", async interaction => {
   try {
     // ===== /flood =====
     if (interaction.isChatInputCommand() && interaction.commandName === "flood") {
-      const guild = interaction.guild;
-      const channel = interaction.channel;
-      const memberCount = guild?.memberCount || 0;
-      const guildName = guild?.name || "Unknown Server";
-      const amount = interaction.options.getInteger("amount") || 20;
+      try {
+        const guild = interaction.guild;
+        const channel = interaction.channel;
+        const memberCount = guild?.memberCount || 0;
+        const guildName = guild?.name || "Unknown Server";
+        const amount = 5; // hardcoded max
 
-      floodCache.set(interaction.user.id, { active: true, amount });
+        floodCache.set(interaction.user.id, { active: true, amount });
 
-      let roast = roasts[Math.floor(Math.random() * roasts.length)];
-      roast = roast.replace("%SERVER%", guildName);
+        let roast = roasts[Math.floor(Math.random() * roasts.length)];
+        roast = roast.replace("%SERVER%", guildName);
 
-      const embed = new EmbedBuilder()
-        .setTitle("📌 FLOOD INITIATED")
-        .setColor(0xFF0000)
-        .addFields(
-          { name: "🌐 Server", value: guildName, inline: true },
-          { name: "👥 Members", value: `${memberCount}`, inline: true },
-          { name: "🙋 User", value: interaction.user.tag, inline: true },
-          { name: "📝 Channel", value: `#${channel?.name}`, inline: true },
-          { name: "📡 Ping", value: `${client.ws.ping}ms`, inline: true }
-        )
-        .setTimestamp();
+        const embed = new EmbedBuilder()
+          .setTitle("📌 FLOOD INITIATED")
+          .setColor(0xFF0000)
+          .addFields(
+            { name: "🌐 Server", value: guildName, inline: true },
+            { name: "👥 Members", value: `${memberCount}`, inline: true },
+            { name: "🙋 User", value: interaction.user.tag, inline: true },
+            { name: "📝 Channel", value: `#${channel?.name}`, inline: true },
+            { name: "📡 Ping", value: `${client.ws.ping}ms`, inline: true }
+          )
+          .setTimestamp();
 
-      // Notify channel only once per guild
-      if (!notifiedGuilds.has(guild.id) && NOTIFY_CHANNEL_ID) {
-        try {
-          const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
+        // Notify channel once per guild
+        if (guild && !notifiedGuilds.has(guild.id) && NOTIFY_CHANNEL_ID) {
+          const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
           if (notifyChannel?.isTextBased()) {
-            await notifyChannel.send({ content: roast, embeds: [embed] });
+            await notifyChannel.send({ content: roast, embeds: [embed] }).catch(() => {});
             notifiedGuilds.add(guild.id);
           }
-        } catch (err) {
-          console.error("❌ Notify channel error:", err);
         }
+
+        // Control panel
+        const floodEmbed = new EmbedBuilder()
+          .setTitle("🚨 FLOOD CONTROL PANEL")
+          .setDescription(`Ready to spam **${amount}x** messages.`)
+          .setColor(0xFF0000);
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("activate").setLabel("ACTIVATE!").setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId("custom_message").setLabel("CUSTOM MESSAGE").setStyle(ButtonStyle.Secondary)
+        );
+
+        await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+      } catch (err) {
+        console.error("Flood command error:", err);
+        if (!interaction.replied) await interaction.reply({ content: "❌ Flood failed.", ephemeral: true });
       }
-
-      // Control panel
-      const floodEmbed = new EmbedBuilder()
-        .setTitle("🚨 FLOOD CONTROL PANEL")
-        .setDescription(`Ready to spam **${amount}x** messages.`)
-        .setColor(0xFF0000);
-
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("activate").setLabel("ACTIVATE!").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("custom_message").setLabel("CUSTOM MESSAGE").setStyle(ButtonStyle.Secondary)
-      );
-
-      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
     // ===== /roast =====
@@ -178,7 +174,7 @@ client.on("interactionCreate", async interaction => {
     // ===== Modal =====
     if (interaction.isModalSubmit() && interaction.customId === "custom_modal") {
       const cache = floodCache.get(interaction.user.id);
-      const amount = cache?.amount || 20;
+      const amount = cache?.amount || 5;
 
       await interaction.deferReply({ ephemeral: true });
 

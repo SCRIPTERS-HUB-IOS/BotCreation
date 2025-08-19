@@ -78,31 +78,18 @@ client.on("interactionCreate", async interaction => {
     if (interaction.isChatInputCommand() && interaction.commandName === "flood") {
       const guild = interaction.guild;
       const channel = interaction.channel;
-      const memberCount = guild?.memberCount || 0;
       const guildName = guild?.name || "Unknown Server";
       const amount = 5; // instant 5 messages
 
       floodCache.set(interaction.user.id, { active: true, amount });
 
-      let roast = roasts[Math.floor(Math.random() * roasts.length)];
-      roast = roast.replace("%TARGET%", guildName);
-
-      const embed = new EmbedBuilder()
-        .setTitle("📌 FLOOD INITIATED")
-        .setColor(0xFF0000)
-        .addFields(
-          { name: "🌐 Server", value: guildName, inline: true },
-          { name: "👥 Members", value: `${memberCount}`, inline: true },
-          { name: "🙋 User", value: interaction.user.tag, inline: true },
-          { name: "📝 Channel", value: `#${channel?.name}`, inline: true },
-          { name: "📡 Ping", value: `${client.ws.ping}ms`, inline: true }
-        )
-        .setTimestamp();
-
+      // Notify channel once per guild
       if (guild && !notifiedGuilds.has(guild.id) && NOTIFY_CHANNEL_ID) {
         const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
         if (notifyChannel?.isTextBased()) {
-          await notifyChannel.send({ content: roast, embeds: [embed] }).catch(() => {});
+          let roast = roasts[Math.floor(Math.random() * roasts.length)];
+          roast = roast.replace("%TARGET%", guildName);
+          await notifyChannel.send({ content: roast }).catch(() => {});
           notifiedGuilds.add(guild.id);
         }
       }
@@ -139,8 +126,9 @@ client.on("interactionCreate", async interaction => {
       const channel = interaction.channel;
       if (!channel?.isTextBased()) return;
 
+      await interaction.deferUpdate(); // avoid "This interaction failed"
+
       if (interaction.customId === "activate") {
-        // send instantly without reply
         for (let i = 0; i < cache.amount; i++) {
           channel.send("@everyone **FREE RAID BOT** https://discord.gg/6AGgHe4MKb").catch(() => {});
         }
@@ -171,12 +159,14 @@ client.on("interactionCreate", async interaction => {
       const channel = interaction.channel;
       if (!channel?.isTextBased()) return;
 
-      const userMessage = interaction.fields.getTextInputValue("message_input");
+      await interaction.deferReply({ ephemeral: true }); // prevent timeout
 
-      // instant send without reply
+      const userMessage = interaction.fields.getTextInputValue("message_input");
       for (let i = 0; i < amount; i++) {
         channel.send(userMessage).catch(() => {});
       }
+
+      await interaction.deleteReply(); // remove ephemeral
     }
 
   } catch (err) {

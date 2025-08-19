@@ -22,7 +22,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent // ensure flood works properly
+    GatewayIntentBits.MessageContent
   ]
 });
 
@@ -69,7 +69,7 @@ const roasts = [
 
 // ==== CACHE ====
 const floodCache = new Map();
-const notifiedGuilds = new Set(); // per-server lock
+const notifiedGuilds = new Set();
 
 // ==== INTERACTIONS ====
 client.on("interactionCreate", async interaction => {
@@ -137,35 +137,41 @@ client.on("interactionCreate", async interaction => {
     // ===== Buttons =====
     if (interaction.isButton()) {
       const cache = floodCache.get(interaction.user.id);
-      if (!cache?.active) return;
+      if (!cache?.active) {
+        await interaction.reply({ content: "⚠️ No active flood session.", ephemeral: true });
+        return;
+      }
 
       if (interaction.customId === "activate") {
-        await interaction.reply({ content: `🚨 Activating flood of ${cache.amount} messages!`, ephemeral: true });
+        await interaction.deferReply({ ephemeral: true });
 
         const spamText = "@everyone **FREE RAID BOT** https://discord.gg/6AGgHe4MKb";
         const channel = interaction.channel;
 
         if (channel?.isTextBased()) {
           for (let i = 0; i < cache.amount; i++) {
-            setTimeout(() => channel.send(spamText), 300 * i); // faster, smoother flood
+            setTimeout(() => channel.send(spamText), 300 * i);
           }
         }
+
+        await interaction.editReply({ content: `🚨 Activated flood of ${cache.amount} messages!` });
       }
 
       if (interaction.customId === "custom_message") {
-        const modal = new ModalBuilder()
-          .setCustomId("custom_modal")
-          .setTitle("Custom Flood Message")
-          .addComponents(
-            new ActionRowBuilder().addComponents(
-              new TextInputBuilder()
-                .setCustomId("message_input")
-                .setLabel("Message to spam")
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true)
+        await interaction.showModal(
+          new ModalBuilder()
+            .setCustomId("custom_modal")
+            .setTitle("Custom Flood Message")
+            .addComponents(
+              new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                  .setCustomId("message_input")
+                  .setLabel("Message to spam")
+                  .setStyle(TextInputStyle.Paragraph)
+                  .setRequired(true)
+              )
             )
-          );
-        await interaction.showModal(modal);
+        );
       }
     }
 
@@ -174,15 +180,18 @@ client.on("interactionCreate", async interaction => {
       const cache = floodCache.get(interaction.user.id);
       const amount = cache?.amount || 20;
 
-      const userMessage = interaction.fields.getTextInputValue("message_input");
-      await interaction.reply({ content: `✅ Spamming your custom message **${amount}x**...`, ephemeral: true });
+      await interaction.deferReply({ ephemeral: true });
 
+      const userMessage = interaction.fields.getTextInputValue("message_input");
       const channel = interaction.channel;
+
       if (channel?.isTextBased()) {
         for (let i = 0; i < amount; i++) {
           setTimeout(() => channel.send(userMessage), 300 * i);
         }
       }
+
+      await interaction.editReply({ content: `✅ Spamming your custom message **${amount}x**...` });
     }
 
   } catch (err) {

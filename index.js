@@ -8,21 +8,24 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID; // optional if you want guild-specific commands
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive server for Render
+// Keep-alive server
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
 // Discord client
 const client = new Client({ 
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ] 
 });
 
-// Slash commands
+// Slash commands (GLOBAL)
 const commands = [
   new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON(),
   new SlashCommandBuilder()
@@ -39,17 +42,14 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
-    if(GUILD_ID){
-      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
-      console.log('Slash commands registered to guild.');
-    } else {
-      await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-      console.log('Slash commands registered globally.');
-    }
-  } catch (err) { console.error(err); }
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    console.log('✅ Global slash commands registered.');
+  } catch (err) {
+    console.error('❌ Command registration failed:', err);
+  }
 })();
 
-// Funny roasts
+// Roasts array
 const roasts = [
   "Yo %TARGET%, did you hire a hamster to moderate this place? 😂",
   "%TARGET% members: active. Moderation: asleep.",
@@ -60,7 +60,7 @@ const roasts = [
   "Congrats %TARGET%, you just got roasted by a bot."
 ];
 
-// Flood cache
+// Flood cache and notified guilds
 const floodCache = new Map();
 const notifiedGuilds = new Set();
 
@@ -69,28 +69,27 @@ client.on('interactionCreate', async interaction => {
     // /flood command
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
       const guild = interaction.guild;
-      const channel = interaction.channel;
-      const guildName = guild?.name || "Unknown Server";
+      if(!guild) return;
 
       floodCache.set(interaction.user.id, true);
 
-      // --- Notify once per guild ---
-      if(guild && NOTIFY_CHANNEL_ID && !notifiedGuilds.has(guild.id)){
+      // Notify once per guild
+      if(NOTIFY_CHANNEL_ID && !notifiedGuilds.has(guild.id)){
         const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(()=>null);
         if(notifyChannel?.isTextBased()){
-          let roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%TARGET%', guildName);
+          let roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%TARGET%', guild.name);
           await notifyChannel.send({ content: roast }).catch(()=>{});
           notifiedGuilds.add(guild.id);
         }
       }
 
-      // --- Flood menu ---
+      // Flood menu
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
 
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('activate').setLabel('ACTIVATE!').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('activate').setLabel('ACTIVATE!').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
       );
 
@@ -111,7 +110,7 @@ client.on('interactionCreate', async interaction => {
       const channel = interaction.channel;
       if(!channel?.isTextBased()) return;
 
-      await interaction.deferUpdate(); // prevent interaction failed
+      await interaction.deferUpdate();
 
       if(interaction.customId === 'activate'){
         const spamText = `@everyone @here **FREE DISCORD RAIDBOT** https://discord.gg/6AGgHe4MKb`;
@@ -158,9 +157,10 @@ client.on('interactionCreate', async interaction => {
 });
 
 // Login bot
+client.once('ready', () => console.log(`🤖 Logged in as ${client.user.tag}`));
 client.login(TOKEN);
 
-// Self-ping for Render
+// Self-ping for uptime
 setInterval(()=>{
   if(!SELF_URL) return;
   http.get(SELF_URL, res=>console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`))

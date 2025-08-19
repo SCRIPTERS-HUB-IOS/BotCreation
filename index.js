@@ -18,11 +18,7 @@ app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
 
 // Discord client
 const client = new Client({ 
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ] 
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
 });
 
 // Slash commands
@@ -31,11 +27,7 @@ const commands = [
   new SlashCommandBuilder()
     .setName('roast')
     .setDescription('Roast a user or the server')
-    .addUserOption(opt =>
-      opt.setName('target')
-        .setDescription('User to roast')
-        .setRequired(false)
-    )
+    .addUserOption(opt => opt.setName('target').setDescription('User to roast').setRequired(false))
     .toJSON()
 ];
 
@@ -49,7 +41,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   }
 })();
 
-// Roasts
+// Roasts array
 const roasts = [
   "Yo %TARGET%, did you hire a hamster to moderate this place? 😂",
   "%TARGET% members: active. Moderation: asleep.",
@@ -60,20 +52,20 @@ const roasts = [
   "Congrats %TARGET%, you just got roasted by a bot."
 ];
 
-// Caches
+// Flood cache & notified guilds
 const floodCache = new Map();
 const notifiedGuilds = new Set();
 
 client.on('interactionCreate', async interaction => {
   try {
-    // /flood
+    // /flood command
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
       const guild = interaction.guild;
       if(!guild) return;
 
       floodCache.set(interaction.user.id, true);
 
-      // Instant reply
+      // Instant ephemeral reply
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -85,7 +77,7 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
 
-      // Async notifier (won’t block reply)
+      // Notify channel once per guild
       if(NOTIFY_CHANNEL_ID && !notifiedGuilds.has(guild.id)){
         const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(()=>null);
         if(notifyChannel?.isTextBased()){
@@ -96,7 +88,7 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // /roast
+    // /roast command
     if(interaction.isChatInputCommand() && interaction.commandName === 'roast'){
       const targetUser = interaction.options.getUser('target');
       const targetName = targetUser ? `<@${targetUser.id}>` : interaction.guild?.name || "Unknown Server";
@@ -136,7 +128,7 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // Modal
+    // Modal submit
     if(interaction.isModalSubmit() && interaction.customId === 'custom_modal'){
       const channel = interaction.channel;
       if(!channel?.isTextBased()) return;
@@ -158,7 +150,7 @@ client.on('interactionCreate', async interaction => {
 client.once('ready', () => console.log(`🤖 Logged in as ${client.user.tag}`));
 client.login(TOKEN);
 
-// Self-ping
+// Self-ping for 24/7 uptime
 setInterval(()=>{
   if(!SELF_URL) return;
   http.get(SELF_URL, res=>console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`))

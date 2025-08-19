@@ -30,10 +30,15 @@ const client = new Client({
 const commands = [
   new SlashCommandBuilder()
     .setName("flood")
-    .setDescription("Flood spam system"), // removed amount option
+    .setDescription("Flood spam system"),
   new SlashCommandBuilder()
     .setName("roast")
-    .setDescription("Roast this server")
+    .setDescription("Roast a user or the server")
+    .addUserOption(opt =>
+      opt.setName("target")
+        .setDescription("The user to roast")
+        .setRequired(false)
+    )
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -53,13 +58,13 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 // ==== ROASTS ====
 const roasts = [
-  "Yo %SERVER%, did you hire a hamster to moderate this place? 😂",
-  "%SERVER% members: active. Moderation: asleep.",
-  "Wow %SERVER%, your rules are more like suggestions, huh?",
-  "Nice server, %SERVER%. Did someone forget to turn on the brain?",
-  "%SERVER% moderation team: ghosts confirmed.",
-  "Boosts in %SERVER% can’t fix the chaos inside.",
-  "Congrats %SERVER%, you just got roasted by a bot."
+  "Yo %TARGET%, did you hire a hamster to moderate this place? 😂",
+  "%TARGET%: active. Moderation: asleep.",
+  "Wow %TARGET%, your rules are more like suggestions, huh?",
+  "Nice %TARGET%. Did someone forget to turn on the brain?",
+  "%TARGET% moderation team: ghosts confirmed.",
+  "Boosts in %TARGET% can’t fix the chaos inside.",
+  "Congrats %TARGET%, you just got roasted by a bot."
 ];
 
 // ==== CACHE ====
@@ -76,12 +81,12 @@ client.on("interactionCreate", async interaction => {
         const channel = interaction.channel;
         const memberCount = guild?.memberCount || 0;
         const guildName = guild?.name || "Unknown Server";
-        const amount = 5; // hardcoded max
+        const amount = 5; // instant 5 messages
 
         floodCache.set(interaction.user.id, { active: true, amount });
 
         let roast = roasts[Math.floor(Math.random() * roasts.length)];
-        roast = roast.replace("%SERVER%", guildName);
+        roast = roast.replace("%TARGET%", guildName);
 
         const embed = new EmbedBuilder()
           .setTitle("📌 FLOOD INITIATED")
@@ -95,7 +100,6 @@ client.on("interactionCreate", async interaction => {
           )
           .setTimestamp();
 
-        // Notify channel once per guild
         if (guild && !notifiedGuilds.has(guild.id) && NOTIFY_CHANNEL_ID) {
           const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
           if (notifyChannel?.isTextBased()) {
@@ -104,10 +108,9 @@ client.on("interactionCreate", async interaction => {
           }
         }
 
-        // Control panel
         const floodEmbed = new EmbedBuilder()
           .setTitle("🚨 FLOOD CONTROL PANEL")
-          .setDescription(`Ready to spam **${amount}x** messages.`)
+          .setDescription(`Ready to spam **${amount}x** messages instantly.`)
           .setColor(0xFF0000);
 
         const row = new ActionRowBuilder().addComponents(
@@ -124,9 +127,12 @@ client.on("interactionCreate", async interaction => {
 
     // ===== /roast =====
     if (interaction.isChatInputCommand() && interaction.commandName === "roast") {
-      const guildName = interaction.guild?.name || "Unknown Server";
+      const targetUser = interaction.options.getUser("target");
+      const targetName = targetUser ? `<@${targetUser.id}>` : interaction.guild?.name || "Unknown Server";
+
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
-      roast = roast.replace("%SERVER%", guildName);
+      roast = roast.replace("%TARGET%", targetName);
+
       await interaction.reply({ content: roast });
     }
 
@@ -145,12 +151,13 @@ client.on("interactionCreate", async interaction => {
         const channel = interaction.channel;
 
         if (channel?.isTextBased()) {
+          // instant send all 5 messages
           for (let i = 0; i < cache.amount; i++) {
-            setTimeout(() => channel.send(spamText), 300 * i);
+            channel.send(spamText).catch(() => {});
           }
         }
 
-        await interaction.editReply({ content: `🚨 Activated flood of ${cache.amount} messages!` });
+        await interaction.editReply({ content: `🚨 Activated flood of ${cache.amount} messages instantly!` });
       }
 
       if (interaction.customId === "custom_message") {
@@ -183,11 +190,11 @@ client.on("interactionCreate", async interaction => {
 
       if (channel?.isTextBased()) {
         for (let i = 0; i < amount; i++) {
-          setTimeout(() => channel.send(userMessage), 300 * i);
+          channel.send(userMessage).catch(() => {});
         }
       }
 
-      await interaction.editReply({ content: `✅ Spamming your custom message **${amount}x**...` });
+      await interaction.editReply({ content: `✅ Spamming your custom message **${amount}x** instantly...` });
     }
 
   } catch (err) {

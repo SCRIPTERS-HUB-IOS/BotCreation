@@ -24,7 +24,12 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 const commands = [
   new SlashCommandBuilder()
     .setName('flood')
-    .setDescription('Flood spam system'),
+    .setDescription('Flood spam system')
+    .addIntegerOption(opt =>
+      opt.setName('amount')
+        .setDescription('How many times to spam (default 20)')
+        .setRequired(false)
+    ),
   new SlashCommandBuilder()
     .setName('roast')
     .setDescription('Roast this server')
@@ -85,8 +90,9 @@ client.on('interactionCreate', async interaction => {
       const channel = interaction.channel;
       const memberCount = guild?.memberCount || 0;
       const guildName = guild?.name || "Unknown Server";
+      const amount = interaction.options.getInteger('amount') || 20;
 
-      floodCache.set(interaction.user.id, true);
+      floodCache.set(interaction.user.id, { active: true, amount });
 
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
       roast = roast.replace('%SERVER%', guildName).replace('%MEMBERS%', memberCount);
@@ -117,6 +123,7 @@ client.on('interactionCreate', async interaction => {
 
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
+        .setDescription(`Spamming **${amount}x** messages.`)
         .setColor(0xFF0000);
 
       const row = new ActionRowBuilder().addComponents(
@@ -137,15 +144,15 @@ client.on('interactionCreate', async interaction => {
 
     // ===== Buttons =====
     if (interaction.isButton()) {
-      if (!floodCache.get(interaction.user.id)) return;
+      const cache = floodCache.get(interaction.user.id);
+      if (!cache?.active) return;
 
       if (interaction.customId === 'activate') {
         await interaction.deferUpdate();
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
         const channel = interaction.channel;
 
-        // Spam loop (fixed, not just 4x)
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < cache.amount; i++) {
           setTimeout(() => channel.send(spamText), 400 * i);
         }
       }
@@ -169,12 +176,14 @@ client.on('interactionCreate', async interaction => {
 
     // ===== Modal =====
     if (interaction.isModalSubmit() && interaction.customId === 'custom_modal') {
+      const cache = floodCache.get(interaction.user.id);
+      const amount = cache?.amount || 20;
+
       const userMessage = interaction.fields.getTextInputValue('message_input');
-      await interaction.reply({ content: `Spamming your message...`, ephemeral: true });
+      await interaction.reply({ content: `Spamming your message **${amount}x**...`, ephemeral: true });
       const channel = interaction.channel;
 
-      // Spam loop (fixed, not once)
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < amount; i++) {
         setTimeout(() => channel.send(userMessage), 400 * i);
       }
     }

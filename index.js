@@ -49,7 +49,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
   }
 })();
 
-// Roasts array
+// Roasts
 const roasts = [
   "Yo %TARGET%, did you hire a hamster to moderate this place? 😂",
   "%TARGET% members: active. Moderation: asleep.",
@@ -66,7 +66,12 @@ const notifiedGuilds = new Set();
 
 client.on('interactionCreate', async interaction => {
   try {
-    // /flood command
+    // Defer immediately for slash commands
+    if(interaction.isChatInputCommand()){
+      await interaction.deferReply({ ephemeral: interaction.commandName === 'flood' });
+    }
+
+    // /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
       const guild = interaction.guild;
       if(!guild) return;
@@ -83,7 +88,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // Flood menu
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -93,15 +97,15 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
       );
 
-      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+      await interaction.editReply({ embeds: [floodEmbed], components: [row] });
     }
 
-    // /roast command
+    // /roast
     if(interaction.isChatInputCommand() && interaction.commandName === 'roast'){
       const targetUser = interaction.options.getUser('target');
       const targetName = targetUser ? `<@${targetUser.id}>` : interaction.guild?.name || "Unknown Server";
       let roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%TARGET%', targetName);
-      await interaction.reply({ content: roast });
+      await interaction.editReply({ content: roast });
     }
 
     // Button interactions
@@ -110,7 +114,7 @@ client.on('interactionCreate', async interaction => {
       const channel = interaction.channel;
       if(!channel?.isTextBased()) return;
 
-      await interaction.deferUpdate();
+      await interaction.deferUpdate(); // prevents interaction failed
 
       if(interaction.customId === 'activate'){
         const spamText = `@everyone @here **FREE DISCORD RAIDBOT** https://discord.gg/6AGgHe4MKb`;

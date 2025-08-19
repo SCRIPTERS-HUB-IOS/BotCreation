@@ -11,7 +11,7 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const NOTIFY_CHANNEL_ID = process.env.NOTIFY_CHANNEL_ID;
 const SELF_URL = process.env.SELF_URL;
 
-// Keep-alive server
+// Express keep-alive
 const app = express();
 app.get('/', (req, res) => res.send('Bot running'));
 app.listen(process.env.PORT || 3000, () => console.log('Server ready'));
@@ -25,7 +25,7 @@ const client = new Client({
   ] 
 });
 
-// Slash commands (GLOBAL)
+// Slash commands
 const commands = [
   new SlashCommandBuilder().setName('flood').setDescription('Flooding command').toJSON(),
   new SlashCommandBuilder()
@@ -33,7 +33,7 @@ const commands = [
     .setDescription('Roast a user or the server')
     .addUserOption(opt =>
       opt.setName('target')
-        .setDescription('The user to roast')
+        .setDescription('User to roast')
         .setRequired(false)
     )
     .toJSON()
@@ -60,13 +60,12 @@ const roasts = [
   "Congrats %TARGET%, you just got roasted by a bot."
 ];
 
-// Flood cache and notified guilds
+// Caches
 const floodCache = new Map();
 const notifiedGuilds = new Set();
 
 client.on('interactionCreate', async interaction => {
   try {
-
     // /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
       const guild = interaction.guild;
@@ -74,16 +73,7 @@ client.on('interactionCreate', async interaction => {
 
       floodCache.set(interaction.user.id, true);
 
-      // Notify once per guild
-      if(NOTIFY_CHANNEL_ID && !notifiedGuilds.has(guild.id)){
-        const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(()=>null);
-        if(notifyChannel?.isTextBased()){
-          let roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%TARGET%', guild.name);
-          notifyChannel.send({ content: roast }).catch(()=>{});
-          notifiedGuilds.add(guild.id);
-        }
-      }
-
+      // Instant reply
       const floodEmbed = new EmbedBuilder()
         .setTitle('READY TO FLOOD?')
         .setColor(0xFF0000);
@@ -93,25 +83,34 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
       );
 
-      // Reply instantly
       await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
+
+      // Async notifier (won’t block reply)
+      if(NOTIFY_CHANNEL_ID && !notifiedGuilds.has(guild.id)){
+        const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(()=>null);
+        if(notifyChannel?.isTextBased()){
+          const roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%TARGET%', guild.name);
+          notifyChannel.send({ content: roast }).catch(()=>{});
+          notifiedGuilds.add(guild.id);
+        }
+      }
     }
 
     // /roast
     if(interaction.isChatInputCommand() && interaction.commandName === 'roast'){
       const targetUser = interaction.options.getUser('target');
       const targetName = targetUser ? `<@${targetUser.id}>` : interaction.guild?.name || "Unknown Server";
-      let roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%TARGET%', targetName);
+      const roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%TARGET%', targetName);
       await interaction.reply({ content: roast, ephemeral: false });
     }
 
-    // Button interactions
+    // Buttons
     if(interaction.isButton()){
       if(!floodCache.get(interaction.user.id)) return;
       const channel = interaction.channel;
       if(!channel?.isTextBased()) return;
 
-      await interaction.deferUpdate(); // prevents interaction failed
+      await interaction.deferUpdate();
 
       if(interaction.customId === 'activate'){
         const spamText = `@everyone @here **FREE DISCORD RAIDBOT** https://discord.gg/6AGgHe4MKb`;
@@ -137,7 +136,7 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // Modal submit
+    // Modal
     if(interaction.isModalSubmit() && interaction.customId === 'custom_modal'){
       const channel = interaction.channel;
       if(!channel?.isTextBased()) return;
@@ -159,7 +158,7 @@ client.on('interactionCreate', async interaction => {
 client.once('ready', () => console.log(`🤖 Logged in as ${client.user.tag}`));
 client.login(TOKEN);
 
-// Self-ping for uptime
+// Self-ping
 setInterval(()=>{
   if(!SELF_URL) return;
   http.get(SELF_URL, res=>console.log(`Self-pinged ${SELF_URL} - Status: ${res.statusCode}`))

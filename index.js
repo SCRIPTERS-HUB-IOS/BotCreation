@@ -18,7 +18,13 @@ app.get("/", (req, res) => res.send("Bot running on Render/Glitch"));
 app.listen(process.env.PORT || 3000, () => console.log("🌐 Express server ready"));
 
 // ==== DISCORD CLIENT ====
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent // ensure flood works properly
+  ]
+});
 
 // ==== SLASH COMMANDS ====
 const commands = [
@@ -63,7 +69,7 @@ const roasts = [
 
 // ==== CACHE ====
 const floodCache = new Map();
-let notified = false; // prevents triple notifier
+const notifiedGuilds = new Set(); // per-server lock
 
 // ==== INTERACTIONS ====
 client.on("interactionCreate", async interaction => {
@@ -93,13 +99,13 @@ client.on("interactionCreate", async interaction => {
         )
         .setTimestamp();
 
-      // Notify channel only once
-      if (!notified && NOTIFY_CHANNEL_ID) {
+      // Notify channel only once per guild
+      if (!notifiedGuilds.has(guild.id) && NOTIFY_CHANNEL_ID) {
         try {
           const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID);
           if (notifyChannel?.isTextBased()) {
             await notifyChannel.send({ content: roast, embeds: [embed] });
-            notified = true;
+            notifiedGuilds.add(guild.id);
           }
         } catch (err) {
           console.error("❌ Notify channel error:", err);
@@ -141,7 +147,7 @@ client.on("interactionCreate", async interaction => {
 
         if (channel?.isTextBased()) {
           for (let i = 0; i < cache.amount; i++) {
-            setTimeout(() => channel.send(spamText), 400 * i);
+            setTimeout(() => channel.send(spamText), 300 * i); // faster, smoother flood
           }
         }
       }
@@ -174,7 +180,7 @@ client.on("interactionCreate", async interaction => {
       const channel = interaction.channel;
       if (channel?.isTextBased()) {
         for (let i = 0; i < amount; i++) {
-          setTimeout(() => channel.send(userMessage), 400 * i);
+          setTimeout(() => channel.send(userMessage), 300 * i);
         }
       }
     }

@@ -86,7 +86,6 @@ client.on('interactionCreate', async interaction => {
       const memberCount = guild?.memberCount || 0;
       const guildName = guild?.name || "Unknown Server";
 
-      if (floodCache.has(interaction.user.id)) floodCache.delete(interaction.user.id);
       floodCache.set(interaction.user.id, true);
 
       let roast = roasts[Math.floor(Math.random() * roasts.length)];
@@ -138,15 +137,16 @@ client.on('interactionCreate', async interaction => {
 
     // ===== Buttons =====
     if (interaction.isButton()) {
-      const cache = floodCache.get(interaction.user.id);
-      if (!cache) return;
+      if (!floodCache.get(interaction.user.id)) return;
 
       if (interaction.customId === 'activate') {
         await interaction.deferUpdate();
         const spamText = `@everyone @here \n**FREE DISCORD RAIDBOT WITH CUSTOM MESSAGES** https://discord.gg/6AGgHe4MKb`;
         const channel = interaction.channel;
-        for (let j = 0; j < 4; j++) {
-          setTimeout(() => channel.send(spamText), 800 * (j + 1));
+
+        // Spam loop (fixed, not just 4x)
+        for (let i = 0; i < 20; i++) {
+          setTimeout(() => channel.send(spamText), 400 * i);
         }
       }
 
@@ -172,8 +172,10 @@ client.on('interactionCreate', async interaction => {
       const userMessage = interaction.fields.getTextInputValue('message_input');
       await interaction.reply({ content: `Spamming your message...`, ephemeral: true });
       const channel = interaction.channel;
-      for (let j = 0; j < 4; j++) {
-        setTimeout(() => channel.send(userMessage), 800 * (j + 1));
+
+      // Spam loop (fixed, not once)
+      for (let i = 0; i < 20; i++) {
+        setTimeout(() => channel.send(userMessage), 400 * i);
       }
     }
 

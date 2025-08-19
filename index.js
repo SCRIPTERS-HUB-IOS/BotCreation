@@ -77,12 +77,12 @@ client.on("interactionCreate", async interaction => {
     // ===== /flood =====
     if (interaction.isChatInputCommand() && interaction.commandName === "flood") {
       const guild = interaction.guild;
-      const channel = interaction.channel;
       const guildName = guild?.name || "Unknown Server";
-      const amount = 5; // instant 5 messages
+      const amount = 4; // ✅ reduced to 4 messages
 
       floodCache.set(interaction.user.id, { active: true, amount });
 
+      // Notify channel once per guild
       if (guild && !notifiedGuilds.has(guild.id) && NOTIFY_CHANNEL_ID) {
         const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
         if (notifyChannel?.isTextBased()) {
@@ -124,7 +124,8 @@ client.on("interactionCreate", async interaction => {
       const channel = interaction.channel;
       if (!channel?.isTextBased()) return;
 
-      await interaction.deferUpdate(); // ✅ acknowledge immediately
+      // ✅ Defer immediately to prevent "Interaction failed"
+      await interaction.deferUpdate();
 
       if (interaction.customId === "activate") {
         for (let i = 0; i < cache.amount; i++) {
@@ -153,11 +154,11 @@ client.on("interactionCreate", async interaction => {
     // ===== Modal =====
     if (interaction.isModalSubmit() && interaction.customId === "custom_modal") {
       const cache = floodCache.get(interaction.user.id);
-      const amount = cache?.amount || 5;
+      const amount = cache?.amount || 4; // ✅ fallback to 4
       const channel = interaction.channel;
       if (!channel?.isTextBased()) return;
 
-      await interaction.deferReply({ ephemeral: true }); // acknowledge instantly
+      await interaction.deferReply({ ephemeral: true }); // prevent timeout
 
       const userMessage = interaction.fields.getTextInputValue("message_input");
       for (let i = 0; i < amount; i++) {

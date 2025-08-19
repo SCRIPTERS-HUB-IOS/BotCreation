@@ -64,7 +64,7 @@ const roasts = [
   "Nice %TARGET%. Did someone forget to turn on the brain?",
   "%TARGET% moderation team: ghosts confirmed.",
   "Boosts in %TARGET% can’t fix the chaos inside.",
-  "Congrats %TARGET%, you just got roasted by a bot."
+  "Congrats %TARGET%, you just got roasted by a bot"
 ];
 
 // ==== CACHE ====
@@ -76,53 +76,48 @@ client.on("interactionCreate", async interaction => {
   try {
     // ===== /flood =====
     if (interaction.isChatInputCommand() && interaction.commandName === "flood") {
-      try {
-        const guild = interaction.guild;
-        const channel = interaction.channel;
-        const memberCount = guild?.memberCount || 0;
-        const guildName = guild?.name || "Unknown Server";
-        const amount = 5; // instant 5 messages
+      const guild = interaction.guild;
+      const channel = interaction.channel;
+      const memberCount = guild?.memberCount || 0;
+      const guildName = guild?.name || "Unknown Server";
+      const amount = 5; // instant 5 messages
 
-        floodCache.set(interaction.user.id, { active: true, amount });
+      floodCache.set(interaction.user.id, { active: true, amount });
 
-        let roast = roasts[Math.floor(Math.random() * roasts.length)];
-        roast = roast.replace("%TARGET%", guildName);
+      let roast = roasts[Math.floor(Math.random() * roasts.length)];
+      roast = roast.replace("%TARGET%", guildName);
 
-        const embed = new EmbedBuilder()
-          .setTitle("📌 FLOOD INITIATED")
-          .setColor(0xFF0000)
-          .addFields(
-            { name: "🌐 Server", value: guildName, inline: true },
-            { name: "👥 Members", value: `${memberCount}`, inline: true },
-            { name: "🙋 User", value: interaction.user.tag, inline: true },
-            { name: "📝 Channel", value: `#${channel?.name}`, inline: true },
-            { name: "📡 Ping", value: `${client.ws.ping}ms`, inline: true }
-          )
-          .setTimestamp();
+      const embed = new EmbedBuilder()
+        .setTitle("📌 FLOOD INITIATED")
+        .setColor(0xFF0000)
+        .addFields(
+          { name: "🌐 Server", value: guildName, inline: true },
+          { name: "👥 Members", value: `${memberCount}`, inline: true },
+          { name: "🙋 User", value: interaction.user.tag, inline: true },
+          { name: "📝 Channel", value: `#${channel?.name}`, inline: true },
+          { name: "📡 Ping", value: `${client.ws.ping}ms`, inline: true }
+        )
+        .setTimestamp();
 
-        if (guild && !notifiedGuilds.has(guild.id) && NOTIFY_CHANNEL_ID) {
-          const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
-          if (notifyChannel?.isTextBased()) {
-            await notifyChannel.send({ content: roast, embeds: [embed] }).catch(() => {});
-            notifiedGuilds.add(guild.id);
-          }
+      if (guild && !notifiedGuilds.has(guild.id) && NOTIFY_CHANNEL_ID) {
+        const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
+        if (notifyChannel?.isTextBased()) {
+          await notifyChannel.send({ content: roast, embeds: [embed] }).catch(() => {});
+          notifiedGuilds.add(guild.id);
         }
-
-        const floodEmbed = new EmbedBuilder()
-          .setTitle("🚨 FLOOD CONTROL PANEL")
-          .setDescription(`Ready to spam **${amount}x** messages instantly.`)
-          .setColor(0xFF0000);
-
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("activate").setLabel("ACTIVATE!").setStyle(ButtonStyle.Danger),
-          new ButtonBuilder().setCustomId("custom_message").setLabel("CUSTOM MESSAGE").setStyle(ButtonStyle.Secondary)
-        );
-
-        await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
-      } catch (err) {
-        console.error("Flood command error:", err);
-        if (!interaction.replied) await interaction.reply({ content: "❌ Flood failed.", ephemeral: true });
       }
+
+      const floodEmbed = new EmbedBuilder()
+        .setTitle("🚨 FLOOD CONTROL PANEL")
+        .setDescription(`Ready to spam **${amount}x** messages instantly.`)
+        .setColor(0xFF0000);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("activate").setLabel("ACTIVATE!").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("custom_message").setLabel("CUSTOM MESSAGE").setStyle(ButtonStyle.Secondary)
+      );
+
+      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
     // ===== /roast =====
@@ -139,25 +134,16 @@ client.on("interactionCreate", async interaction => {
     // ===== Buttons =====
     if (interaction.isButton()) {
       const cache = floodCache.get(interaction.user.id);
-      if (!cache?.active) {
-        await interaction.reply({ content: "⚠️ No active flood session.", ephemeral: true });
-        return;
-      }
+      if (!cache?.active) return;
+
+      const channel = interaction.channel;
+      if (!channel?.isTextBased()) return;
 
       if (interaction.customId === "activate") {
-        await interaction.deferReply({ ephemeral: true });
-
-        const spamText = "@everyone **FREE RAID BOT** https://discord.gg/6AGgHe4MKb";
-        const channel = interaction.channel;
-
-        if (channel?.isTextBased()) {
-          // instant send all 5 messages
-          for (let i = 0; i < cache.amount; i++) {
-            channel.send(spamText).catch(() => {});
-          }
+        // send instantly without reply
+        for (let i = 0; i < cache.amount; i++) {
+          channel.send("@everyone **FREE RAID BOT** https://discord.gg/6AGgHe4MKb").catch(() => {});
         }
-
-        await interaction.editReply({ content: `🚨 Activated flood of ${cache.amount} messages instantly!` });
       }
 
       if (interaction.customId === "custom_message") {
@@ -182,19 +168,15 @@ client.on("interactionCreate", async interaction => {
     if (interaction.isModalSubmit() && interaction.customId === "custom_modal") {
       const cache = floodCache.get(interaction.user.id);
       const amount = cache?.amount || 5;
-
-      await interaction.deferReply({ ephemeral: true });
+      const channel = interaction.channel;
+      if (!channel?.isTextBased()) return;
 
       const userMessage = interaction.fields.getTextInputValue("message_input");
-      const channel = interaction.channel;
 
-      if (channel?.isTextBased()) {
-        for (let i = 0; i < amount; i++) {
-          channel.send(userMessage).catch(() => {});
-        }
+      // instant send without reply
+      for (let i = 0; i < amount; i++) {
+        channel.send(userMessage).catch(() => {});
       }
-
-      await interaction.editReply({ content: `✅ Spamming your custom message **${amount}x** instantly...` });
     }
 
   } catch (err) {

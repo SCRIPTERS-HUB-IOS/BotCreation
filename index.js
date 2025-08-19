@@ -66,10 +66,6 @@ const notifiedGuilds = new Set();
 
 client.on('interactionCreate', async interaction => {
   try {
-    // Defer immediately for slash commands
-    if(interaction.isChatInputCommand()){
-      await interaction.deferReply({ ephemeral: interaction.commandName === 'flood' });
-    }
 
     // /flood
     if(interaction.isChatInputCommand() && interaction.commandName === 'flood'){
@@ -83,7 +79,7 @@ client.on('interactionCreate', async interaction => {
         const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(()=>null);
         if(notifyChannel?.isTextBased()){
           let roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%TARGET%', guild.name);
-          await notifyChannel.send({ content: roast }).catch(()=>{});
+          notifyChannel.send({ content: roast }).catch(()=>{});
           notifiedGuilds.add(guild.id);
         }
       }
@@ -97,7 +93,8 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('custom_message').setLabel('CUSTOM MESSAGE').setStyle(ButtonStyle.Secondary)
       );
 
-      await interaction.editReply({ embeds: [floodEmbed], components: [row] });
+      // Reply instantly
+      await interaction.reply({ embeds: [floodEmbed], components: [row], ephemeral: true });
     }
 
     // /roast
@@ -105,7 +102,7 @@ client.on('interactionCreate', async interaction => {
       const targetUser = interaction.options.getUser('target');
       const targetName = targetUser ? `<@${targetUser.id}>` : interaction.guild?.name || "Unknown Server";
       let roast = roasts[Math.floor(Math.random()*roasts.length)].replace('%TARGET%', targetName);
-      await interaction.editReply({ content: roast });
+      await interaction.reply({ content: roast, ephemeral: false });
     }
 
     // Button interactions
@@ -145,14 +142,12 @@ client.on('interactionCreate', async interaction => {
       const channel = interaction.channel;
       if(!channel?.isTextBased()) return;
 
-      await interaction.deferReply({ ephemeral: true });
-
       const userMessage = interaction.fields.getTextInputValue('message_input');
       for(let i=0;i<4;i++){
         setTimeout(()=>channel.send(userMessage).catch(()=>{}), 500*i);
       }
 
-      await interaction.deleteReply();
+      await interaction.reply({ content: "Message sent!", ephemeral: true });
     }
 
   } catch(err){

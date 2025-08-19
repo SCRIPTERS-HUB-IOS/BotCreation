@@ -83,7 +83,6 @@ client.on("interactionCreate", async interaction => {
 
       floodCache.set(interaction.user.id, { active: true, amount });
 
-      // Notify channel once per guild
       if (guild && !notifiedGuilds.has(guild.id) && NOTIFY_CHANNEL_ID) {
         const notifyChannel = await client.channels.fetch(NOTIFY_CHANNEL_ID).catch(() => null);
         if (notifyChannel?.isTextBased()) {
@@ -122,11 +121,10 @@ client.on("interactionCreate", async interaction => {
     if (interaction.isButton()) {
       const cache = floodCache.get(interaction.user.id);
       if (!cache?.active) return;
-
       const channel = interaction.channel;
       if (!channel?.isTextBased()) return;
 
-      await interaction.deferUpdate(); // avoid "This interaction failed"
+      await interaction.deferUpdate(); // ✅ acknowledge immediately
 
       if (interaction.customId === "activate") {
         for (let i = 0; i < cache.amount; i++) {
@@ -159,14 +157,14 @@ client.on("interactionCreate", async interaction => {
       const channel = interaction.channel;
       if (!channel?.isTextBased()) return;
 
-      await interaction.deferReply({ ephemeral: true }); // prevent timeout
+      await interaction.deferReply({ ephemeral: true }); // acknowledge instantly
 
       const userMessage = interaction.fields.getTextInputValue("message_input");
       for (let i = 0; i < amount; i++) {
         channel.send(userMessage).catch(() => {});
       }
 
-      await interaction.deleteReply(); // remove ephemeral
+      await interaction.deleteReply(); // remove ephemeral so nothing shows
     }
 
   } catch (err) {
